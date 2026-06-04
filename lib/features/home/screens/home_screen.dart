@@ -4,6 +4,8 @@ import '../../../app/theme.dart';
 import '../widgets/dashboard_tab.dart';
 import '../widgets/bottom_nav.dart';
 import '../../pausas/screens/pausas_screen.dart';
+import '../../rutinas/screens/rutinas_screen.dart';
+import '../../bloqueos/screens/bloqueos_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  static const _placeholderTabs = ['Rutinas', 'Bloqueos'];
+  static const _placeholderTabs = ['Bloqueos'];
 
   Widget _buildTab(int index) {
     switch (index) {
@@ -23,10 +25,14 @@ class _HomeScreenState extends State<HomeScreen> {
         return const DashboardTab();
       case 1:
         return const PausasScreen();
+      case 2:
+        return const RutinasScreen();
+      case 3:
+        return const BloqueosScreen();
       default:
         return Center(
           child: Text(
-            _placeholderTabs[index - 2],
+            _placeholderTabs[index - 3],
             style: GoogleFonts.dmSerifDisplay(
               fontSize: 28,
               color: PausaColors.textSecondary,
