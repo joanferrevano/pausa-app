@@ -15,6 +15,7 @@ class UpsellScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PausaColors.black,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -28,7 +29,7 @@ class UpsellScreen extends StatelessWidget {
                 delay: const Duration(milliseconds: 0),
                 duration: const Duration(milliseconds: 500),
                 child: Text(
-                  'pausa puede ayudarte\na recuperar',
+                  'PAUSA puede ayudarte\na recuperar',
                   style: GoogleFonts.dmSerifDisplay(
                     fontSize: 30,
                     height: 1.2,

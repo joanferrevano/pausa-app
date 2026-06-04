@@ -12,6 +12,7 @@ class DopamineScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PausaColors.black,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -20,24 +21,21 @@ class DopamineScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 64),
 
-              // Progress dots
+              // App name — PAUSA uppercase centered
               FadeSlideIn(
                 delay: const Duration(milliseconds: 0),
                 duration: const Duration(milliseconds: 400),
-                child: Row(
-                  children: List.generate(4, (i) {
-                    return Container(
-                      margin: const EdgeInsets.only(right: 6),
-                      width: i == 1 ? 24 : 6,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: i == 1
-                            ? PausaColors.white
-                            : PausaColors.border,
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    );
-                  }),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    'PAUSA',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.32,
+                      color: PausaColors.textMuted,
+                    ),
+                  ),
                 ),
               ),
 
