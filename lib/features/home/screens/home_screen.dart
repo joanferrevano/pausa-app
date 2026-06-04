@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../widgets/dashboard_tab.dart';
 import '../widgets/bottom_nav.dart';
+import '../../pausas/screens/pausas_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,19 +15,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  static const _placeholderTabs = ['Pausas', 'Rutinas', 'Bloqueos'];
+  static const _placeholderTabs = ['Rutinas', 'Bloqueos'];
 
   Widget _buildTab(int index) {
-    if (index == 0) return const DashboardTab();
-    return Center(
-      child: Text(
-        _placeholderTabs[index - 1],
-        style: GoogleFonts.dmSerifDisplay(
-          fontSize: 28,
-          color: PausaColors.textSecondary,
-        ),
-      ),
-    );
+    switch (index) {
+      case 0:
+        return const DashboardTab();
+      case 1:
+        return const PausasScreen();
+      default:
+        return Center(
+          child: Text(
+            _placeholderTabs[index - 2],
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 28,
+              color: PausaColors.textSecondary,
+            ),
+          ),
+        );
+    }
   }
 
   @override
