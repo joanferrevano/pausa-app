@@ -2,50 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
+import '../../../app/widgets/fade_slide_in.dart';
+import '../../../app/widgets/pausa_primary_button.dart';
 
-class HookScreen extends StatefulWidget {
+class HookScreen extends StatelessWidget {
   const HookScreen({super.key});
-
-  @override
-  State<HookScreen> createState() => _HookScreenState();
-}
-
-class _HookScreenState extends State<HookScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeTop;
-  late Animation<double> _fadeStat;
-  late Animation<double> _fadeBottom;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-
-    _fadeTop = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
-    );
-    _fadeStat = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.3, 0.7, curve: Curves.easeOut),
-    );
-    _fadeBottom = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.6, 1.0, curve: Curves.easeOut),
-    );
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,46 +16,50 @@ class _HookScreenState extends State<HookScreen>
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 64),
 
-              // Logo wordmark
-              FadeTransition(
-                opacity: _fadeTop,
+              // Logo wordmark — PAUSA uppercase centered
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 0),
+                duration: const Duration(milliseconds: 500),
                 child: Text(
-                  'pausa',
+                  'PAUSA',
+                  textAlign: TextAlign.center,
                   style: GoogleFonts.dmSans(
                     fontSize: 13,
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: 0.2,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.32,
                     color: PausaColors.textMuted,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 56),
 
-              // Headline
-              FadeTransition(
-                opacity: _fadeTop,
+              // Headline — centered, key alarming phrase in red
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 600),
                 child: RichText(
+                  textAlign: TextAlign.center,
                   text: TextSpan(
                     style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 36,
+                      fontSize: 38,
                       height: 1.2,
                       color: PausaColors.textPrimary,
                     ),
                     children: const [
-                      TextSpan(text: '¿Te has dado cuenta\nde que pierdes\n'),
+                      TextSpan(text: '¿Te has dado\ncuenta de que\nperdes '),
                       TextSpan(
-                        text: 'demasiado tiempo\n',
+                        text: 'demasiado\ntiempo',
                         style: TextStyle(
                           fontStyle: FontStyle.italic,
-                          color: PausaColors.textSecondary,
+                          color: PausaColors.red,
                         ),
                       ),
-                      TextSpan(text: 'con el móvil?'),
+                      TextSpan(text: '\ncon el móvil?'),
                     ],
                   ),
                 ),
@@ -102,36 +67,40 @@ class _HookScreenState extends State<HookScreen>
 
               const Spacer(),
 
-              // Stat central
-              FadeTransition(
-                opacity: _fadeStat,
+              // Alarming stat — centered
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 480),
+                duration: const Duration(milliseconds: 600),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       '13',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 96,
+                        fontSize: 104,
                         height: 1.0,
                         color: PausaColors.red,
                       ),
                     ),
                     Text(
-                      'años de tu vida',
+                      'años de tu vida.',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.dmSans(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.w300,
                         color: PausaColors.textPrimary,
-                        letterSpacing: -0.3,
+                        letterSpacing: -0.4,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Es lo que pierde de media\nuna persona con el móvil.',
+                      'Es lo que pierde de media una persona\ncon el móvil a lo largo de su vida.',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.dmSans(
                         fontSize: 14,
                         color: PausaColors.textMuted,
-                        height: 1.6,
+                        height: 1.65,
                       ),
                     ),
                   ],
@@ -140,43 +109,13 @@ class _HookScreenState extends State<HookScreen>
 
               const Spacer(),
 
-              // CTA
-              FadeTransition(
-                opacity: _fadeBottom,
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.goNamed('dopamina'),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        decoration: BoxDecoration(
-                          color: PausaColors.white,
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        child: Text(
-                          'Descubrir mi número',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: PausaColors.black,
-                            letterSpacing: 0.04,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Gratis · Sin registro',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        color: PausaColors.textMuted,
-                        letterSpacing: 0.06,
-                      ),
-                    ),
-                  ],
+              // CTA — no secondary text
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 760),
+                duration: const Duration(milliseconds: 500),
+                child: PausaPrimaryButton(
+                  label: 'Descubrir mi número',
+                  onTap: () => context.goNamed('dopamina'),
                 ),
               ),
 

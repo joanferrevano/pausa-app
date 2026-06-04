@@ -2,50 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
+import '../../../app/widgets/fade_slide_in.dart';
+import '../../../app/widgets/pausa_primary_button.dart';
 
-class DopamineScreen extends StatefulWidget {
+class DopamineScreen extends StatelessWidget {
   const DopamineScreen({super.key});
-
-  @override
-  State<DopamineScreen> createState() => _DopamineScreenState();
-}
-
-class _DopamineScreenState extends State<DopamineScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeIcon;
-  late Animation<double> _fadeQuote;
-  late Animation<double> _fadeBottom;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-
-    _fadeIcon = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
-    );
-    _fadeQuote = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.25, 0.7, curve: Curves.easeOut),
-    );
-    _fadeBottom = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.6, 1.0, curve: Curves.easeOut),
-    );
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,42 +20,47 @@ class _DopamineScreenState extends State<DopamineScreen>
             children: [
               const SizedBox(height: 64),
 
-              // Icono
-              FadeTransition(
-                opacity: _fadeIcon,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: PausaColors.redMuted,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.bolt_rounded,
-                    color: PausaColors.red,
-                    size: 26,
-                  ),
+              // Progress dots
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 0),
+                duration: const Duration(milliseconds: 400),
+                child: Row(
+                  children: List.generate(4, (i) {
+                    return Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      width: i == 1 ? 24 : 6,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: i == 1
+                            ? PausaColors.white
+                            : PausaColors.border,
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    );
+                  }),
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 56),
 
-              // Quote
-              FadeTransition(
-                opacity: _fadeQuote,
+              // Quote — "cocaína" censored + red (alarming comparison)
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 160),
+                duration: const Duration(milliseconds: 600),
                 child: RichText(
                   text: TextSpan(
                     style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 28,
+                      fontSize: 30,
                       height: 1.35,
                       color: PausaColors.textPrimary,
                     ),
                     children: const [
                       TextSpan(
-                        text: 'La dopamina que libera\nscrollear en TikTok es\nsimilar a la de la ',
+                        text:
+                            'La dopamina que libera\nscrollear en TikTok es\nsimilar a la de la ',
                       ),
                       TextSpan(
-                        text: 'cocaína.',
+                        text: 'c***ína.',
                         style: TextStyle(
                           fontStyle: FontStyle.italic,
                           color: PausaColors.red,
@@ -105,66 +71,74 @@ class _DopamineScreenState extends State<DopamineScreen>
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
-              FadeTransition(
-                opacity: _fadeQuote,
+              // Red callout — alarming statement
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 320),
+                duration: const Duration(milliseconds: 500),
                 child: Text(
-                  'Te estás drogando digitalmente\ncada vez que abres el móvil.',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    color: PausaColors.textSecondary,
-                    height: 1.6,
+                  'Te estás drogando digitalmente.',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 22,
+                    height: 1.3,
+                    color: PausaColors.red,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Alarming stat — daily unlocks
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 480),
+                duration: const Duration(milliseconds: 500),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: PausaColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: PausaColors.red.withAlpha(51),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '2.617',
+                        style: GoogleFonts.dmSerifDisplay(
+                          fontSize: 48,
+                          height: 1.0,
+                          color: PausaColors.red,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'veces al día desbloqueas el móvil.',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          color: PausaColors.textMuted,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
               const Spacer(),
 
-              // Dots indicador
-              FadeTransition(
-                opacity: _fadeBottom,
-                child: Row(
-                  children: List.generate(4, (i) {
-                    return Container(
-                      margin: const EdgeInsets.only(right: 6),
-                      width: i == 1 ? 20 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: i == 1
-                            ? PausaColors.white
-                            : PausaColors.textMuted,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
               // CTA
-              FadeTransition(
-                opacity: _fadeBottom,
-                child: GestureDetector(
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 640),
+                duration: const Duration(milliseconds: 500),
+                child: PausaPrimaryButton(
+                  label: 'Continuar',
                   onTap: () => context.goNamed('formulario'),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    decoration: BoxDecoration(
-                      color: PausaColors.white,
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Text(
-                      'Continuar',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: PausaColors.black,
-                      ),
-                    ),
-                  ),
                 ),
               ),
 

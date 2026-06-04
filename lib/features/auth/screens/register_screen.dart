@@ -2,50 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
+import '../../../app/widgets/fade_slide_in.dart';
+import '../../../app/widgets/pressable_feedback.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
-
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
-}
-
-class _RegisterScreenState extends State<RegisterScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeTop;
-  late Animation<double> _fadeButtons;
-  late Animation<double> _fadeBottom;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    );
-
-    _fadeTop = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
-    );
-    _fadeButtons = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.3, 0.75, curve: Curves.easeOut),
-    );
-    _fadeBottom = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.65, 1.0, curve: Curves.easeOut),
-    );
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,139 +20,157 @@ class _RegisterScreenState extends State<RegisterScreen>
             children: [
               const SizedBox(height: 64),
 
-              // Header
-              FadeTransition(
-                opacity: _fadeTop,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'pausa',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        color: PausaColors.textMuted,
-                        letterSpacing: 0.2,
-                      ),
+              // Logo wordmark — PAUSA uppercase centered
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 0),
+                duration: const Duration(milliseconds: 500),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    'PAUSA',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      color: PausaColors.textMuted,
+                      letterSpacing: 0.32,
+                      fontWeight: FontWeight.w500,
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Empieza a recuperar\ntu tiempo hoy.',
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 34,
-                        height: 1.2,
-                        color: PausaColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Crea tu cuenta para guardar tu progreso\ny acceder a todas las funciones.',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        color: PausaColors.textMuted,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Spacer(),
-
-              // Botones de registro
-              FadeTransition(
-                opacity: _fadeButtons,
-                child: Column(
-                  children: [
-                    // Google
-                    _AuthButton(
-                      onTap: () => context.goNamed('home'),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _GoogleIcon(),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Continuar con Google',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: PausaColors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      filled: true,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Apple
-                    _AuthButton(
-                      onTap: () => context.goNamed('home'),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.apple_rounded,
-                            color: PausaColors.textPrimary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Continuar con Apple',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: PausaColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      filled: false,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Email
-                    _AuthButton(
-                      onTap: () => context.goNamed('home'),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.mail_outline_rounded,
-                            color: PausaColors.textPrimary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Continuar con email',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: PausaColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      filled: false,
-                    ),
-                  ],
+                  ),
                 ),
               ),
 
               const SizedBox(height: 24),
 
-              // Legal
-              FadeTransition(
-                opacity: _fadeBottom,
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 80),
+                duration: const Duration(milliseconds: 500),
                 child: Text(
-                  'Al continuar aceptas nuestros Términos de uso\ny Política de privacidad.',
-                  textAlign: TextAlign.center,
+                  'Empieza a recuperar\ntu tiempo hoy.',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 34,
+                    height: 1.2,
+                    color: PausaColors.textPrimary,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 160),
+                duration: const Duration(milliseconds: 400),
+                child: Text(
+                  'Crea tu cuenta para guardar tu progreso\ny acceder a todas las funciones.',
                   style: GoogleFonts.dmSans(
-                    fontSize: 11,
+                    fontSize: 14,
                     color: PausaColors.textMuted,
                     height: 1.6,
+                  ),
+                ),
+              ),
+
+              const Spacer(),
+
+              // Auth buttons — staggered
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 320),
+                duration: const Duration(milliseconds: 400),
+                child: _AuthButton(
+                  onTap: () => context.goNamed('home'),
+                  filled: true,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _GoogleIcon(),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continuar con Google',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: PausaColors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 400),
+                duration: const Duration(milliseconds: 400),
+                child: _AuthButton(
+                  onTap: () => context.goNamed('home'),
+                  filled: false,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.apple_rounded,
+                        color: PausaColors.textPrimary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continuar con Apple',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: PausaColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 480),
+                duration: const Duration(milliseconds: 400),
+                child: _AuthButton(
+                  onTap: () => context.goNamed('home'),
+                  filled: false,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.mail_outline_rounded,
+                        color: PausaColors.textPrimary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continuar con email',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: PausaColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Legal — centered
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 560),
+                duration: const Duration(milliseconds: 400),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    'Al continuar aceptas nuestros Términos de uso\ny Política de privacidad.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      color: PausaColors.textMuted,
+                      height: 1.6,
+                    ),
                   ),
                 ),
               ),
@@ -218,14 +197,14 @@ class _AuthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableFeedback(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: filled ? PausaColors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(50),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: filled ? Colors.transparent : PausaColors.border,
             width: 0.5,
@@ -255,11 +234,9 @@ class _GooglePainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
 
-    // Fondo círculo
     paint.color = Colors.white;
     canvas.drawCircle(center, radius, paint);
 
-    // G simplificada
     final textPainter = TextPainter(
       text: const TextSpan(
         text: 'G',

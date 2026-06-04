@@ -33,7 +33,7 @@ class PausaRouter {
         path: '/onboarding/calculando',
         name: 'calculando',
         pageBuilder: (context, state) => CustomTransitionPage(
-          child: const CalculatingScreen(),
+          child: CalculatingScreen(extra: state.extra as Map<String, dynamic>?),
           transitionsBuilder: (context, animation, _, child) =>
               FadeTransition(opacity: animation, child: child),
         ),
@@ -50,7 +50,9 @@ class PausaRouter {
       GoRoute(
         path: '/onboarding/upsell',
         name: 'upsell',
-        builder: (context, state) => const UpsellScreen(),
+        builder: (context, state) => UpsellScreen(
+          aniosRecuperables: (state.extra as Map<String, dynamic>?)?['aniosRecuperables'] as int? ?? 5,
+        ),
       ),
 
       // Auth

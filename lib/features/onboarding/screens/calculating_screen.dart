@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -13,9 +14,9 @@ class CalculatingScreen extends StatefulWidget {
 
 class _CalculatingScreenState extends State<CalculatingScreen>
     with TickerProviderStateMixin {
-  late AnimationController _ringController;
+  late AnimationController _spinController;
+  late AnimationController _sweepController;
   late AnimationController _textController;
-  late Animation<double> _ringAnimation;
   late Animation<double> _fadeText;
 
   int _messageIndex = 0;
@@ -23,40 +24,34 @@ class _CalculatingScreenState extends State<CalculatingScreen>
     'Analizando tus hábitos...',
     'Calculando días perdidos...',
     'Proyectando años de vida...',
-    'Casi listo...',
+    'Preparando tu resultado...',
   ];
 
   @override
   void initState() {
     super.initState();
 
-    _ringController = AnimationController(
+    // Continuous rotation — slow, premium feel
+    _spinController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+
+    // Sweep breathes in and out (arc grows 40° → 280° → 40°)
+    _sweepController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
 
     _textController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 350),
     );
-
-    _ringAnimation = CurvedAnimation(
-      parent: _ringController,
-      curve: Curves.easeInOut,
-    );
-
-    _fadeText = CurvedAnimation(
-      parent: _textController,
-      curve: Curves.easeOut,
-    );
+    _fadeText = CurvedAnimation(parent: _textController, curve: Curves.easeOut);
 
     _textController.forward();
-    _ringController.repeat();
 
-    // Ciclar mensajes
-    Future.delayed(const Duration(milliseconds: 800), _nextMessage);
-
-    // Navegar al resultado tras 3.5s
+    Future.delayed(const Duration(milliseconds: 750), _nextMessage);
     Future.delayed(const Duration(milliseconds: 3500), _goToResult);
   }
 
@@ -67,7 +62,7 @@ class _CalculatingScreenState extends State<CalculatingScreen>
         if (!mounted) return;
         setState(() => _messageIndex++);
         _textController.forward();
-        Future.delayed(const Duration(milliseconds: 800), _nextMessage);
+        Future.delayed(const Duration(milliseconds: 750), _nextMessage);
       });
     }
   }
@@ -77,7 +72,6 @@ class _CalculatingScreenState extends State<CalculatingScreen>
     final nombre = widget.extra?['nombre'] as String? ?? '';
     final horas = widget.extra?['horas'] as double? ?? 3.5;
 
-    // Cálculo
     final diasAno = (horas * 365 / 24).round();
     final aniosVida = (horas * 50 / 24).round();
     final aniosRecuperables = (aniosVida * 0.45).round();
@@ -93,7 +87,8 @@ class _CalculatingScreenState extends State<CalculatingScreen>
 
   @override
   void dispose() {
-    _ringController.dispose();
+    _spinController.dispose();
+    _sweepController.dispose();
     _textController.dispose();
     super.dispose();
   }
@@ -107,15 +102,18 @@ class _CalculatingScreenState extends State<CalculatingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Anillo animado
+              // Animated circle spinner
               SizedBox(
-                width: 120,
-                height: 120,
+                width: 96,
+                height: 96,
                 child: AnimatedBuilder(
-                  animation: _ringAnimation,
+                  animation: Listenable.merge([_spinController, _sweepController]),
                   builder: (context, _) {
                     return CustomPaint(
-                      painter: _RingPainter(_ringAnimation.value),
+                      painter: _SpinnerPainter(
+                        rotation: _spinController.value,
+                        sweepFactor: _sweepController.value,
+                      ),
                     );
                   },
                 ),
@@ -123,15 +121,27 @@ class _CalculatingScreenState extends State<CalculatingScreen>
 
               const SizedBox(height: 48),
 
-              // Mensaje animado
+              Text(
+                'PAUSA',
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.32,
+                  color: PausaColors.textMuted,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Cycling analysis message
               FadeTransition(
                 opacity: _fadeText,
                 child: Text(
                   _messages[_messageIndex],
                   style: GoogleFonts.dmSans(
-                    fontSize: 16,
+                    fontSize: 14,
                     color: PausaColors.textSecondary,
-                    letterSpacing: 0.02,
+                    letterSpacing: 0.04,
                   ),
                 ),
               ),
@@ -143,39 +153,43 @@ class _CalculatingScreenState extends State<CalculatingScreen>
   }
 }
 
-class _RingPainter extends CustomPainter {
-  final double progress;
-  _RingPainter(this.progress);
+class _SpinnerPainter extends CustomPainter {
+  final double rotation;
+  final double sweepFactor;
+
+  _SpinnerPainter({required this.rotation, required this.sweepFactor});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 8;
+    final radius = size.width / 2 - 4;
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Track
+    // Dim track ring
     final trackPaint = Paint()
       ..color = PausaColors.border
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
+      ..strokeWidth = 1.5;
     canvas.drawCircle(center, radius, trackPaint);
 
-    // Arco animado
+    // Breathing sweep arc: 40° at min, 260° at max
+    const minSweep = 40 * pi / 180;
+    const maxSweep = 260 * pi / 180;
+    final sweep = minSweep + (maxSweep - minSweep) * sweepFactor;
+
+    // Start angle rotates continuously
+    final startAngle = rotation * 2 * pi - pi / 2;
+
     final arcPaint = Paint()
-      ..color = PausaColors.red
+      ..color = PausaColors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -1.5708, // -90 grados
-      progress * 2 * 3.14159,
-      false,
-      arcPaint,
-    );
+    canvas.drawArc(rect, startAngle, sweep, false, arcPaint);
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.progress != progress;
+  bool shouldRepaint(_SpinnerPainter old) =>
+      old.rotation != rotation || old.sweepFactor != sweepFactor;
 }
