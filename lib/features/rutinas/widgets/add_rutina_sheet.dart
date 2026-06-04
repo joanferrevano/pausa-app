@@ -68,8 +68,10 @@ class _AddRutinaSheetState extends State<AddRutinaSheet> {
           DateTime.now().millisecondsSinceEpoch.toString(),
       name: _nameCtrl.text.trim(),
       days: List.of(_days)..sort(),
-      startTime: _start,
-      endTime: _end,
+      startHour: _start.hour,
+      startMinute: _start.minute,
+      endHour: _end.hour,
+      endMinute: _end.minute,
       appNames: _apps,
     );
     Navigator.of(context).pop(rutina);

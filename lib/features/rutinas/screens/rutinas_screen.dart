@@ -1,39 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../shared/providers/rutinas_provider.dart';
 import '../models/rutina.dart';
 import '../widgets/rutina_card.dart';
 import '../widgets/add_rutina_sheet.dart';
 import '../widgets/empty_rutinas_state.dart';
 
-final _mockRutinas = [
-  const Rutina(
-    id: 'mock_1',
-    name: 'Noche sin pantallas',
-    days: [0, 1, 2, 3, 4],
-    startTime: TimeOfDay(hour: 22, minute: 0),
-    endTime: TimeOfDay(hour: 7, minute: 0),
-    appNames: ['Instagram', 'TikTok', 'YouTube'],
-  ),
-];
-
-class RutinasScreen extends StatefulWidget {
+class RutinasScreen extends ConsumerWidget {
   const RutinasScreen({super.key});
 
-  @override
-  State<RutinasScreen> createState() => _RutinasScreenState();
-}
-
-class _RutinasScreenState extends State<RutinasScreen> {
-  late final List<Rutina> _rutinas;
-
-  @override
-  void initState() {
-    super.initState();
-    _rutinas = List.of(_mockRutinas);
-  }
-
-  Future<void> _openSheet({Rutina? existing, int? editIndex}) async {
+  Future<void> _openSheet(
+    BuildContext context,
+    WidgetRef ref, {
+    Rutina? existing,
+  }) async {
     final result = await showModalBottomSheet<Rutina>(
       context: context,
       isScrollControlled: true,
@@ -41,23 +23,17 @@ class _RutinasScreenState extends State<RutinasScreen> {
       builder: (_) => AddRutinaSheet(existing: existing),
     );
     if (result == null) return;
-    setState(() {
-      if (editIndex != null) {
-        _rutinas[editIndex] = result;
-      } else {
-        _rutinas.add(result);
-      }
-    });
+    final notifier = ref.read(rutinasProvider.notifier);
+    if (existing != null) {
+      await notifier.updateRutina(result);
+    } else {
+      await notifier.addRutina(result);
+    }
   }
-
-  void _toggle(int i, bool value) {
-    setState(() => _rutinas[i] = _rutinas[i].copyWith(isActive: value));
-  }
-
-  void _delete(int i) => setState(() => _rutinas.removeAt(i));
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rutinas = ref.watch(rutinasProvider);
     return Scaffold(
       backgroundColor: PausaColors.black,
       body: SafeArea(
@@ -65,22 +41,25 @@ class _RutinasScreenState extends State<RutinasScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Header(onAdd: () => _openSheet()),
+            _Header(onAdd: () => _openSheet(context, ref)),
             Expanded(
-              child: _rutinas.isEmpty
+              child: rutinas.isEmpty
                   ? const EmptyRutinasState()
                   : _RutinasList(
-                      rutinas: _rutinas,
-                      onToggle: _toggle,
-                      onEdit: (i) =>
-                          _openSheet(existing: _rutinas[i], editIndex: i),
-                      onDelete: _delete,
+                      rutinas: rutinas,
+                      onToggle: (id, v) => ref
+                          .read(rutinasProvider.notifier)
+                          .toggleRutina(id, v),
+                      onEdit: (r) => _openSheet(context, ref, existing: r),
+                      onDelete: (id) => ref
+                          .read(rutinasProvider.notifier)
+                          .deleteRutina(id),
                     ),
             ),
           ],
         ),
       ),
-      floatingActionButton: _CreateFab(onTap: () => _openSheet()),
+      floatingActionButton: _CreateFab(onTap: () => _openSheet(context, ref)),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
@@ -128,9 +107,9 @@ class _RutinasList extends StatelessWidget {
   });
 
   final List<Rutina> rutinas;
-  final void Function(int, bool) onToggle;
-  final ValueChanged<int> onEdit;
-  final ValueChanged<int> onDelete;
+  final void Function(String, bool) onToggle;
+  final ValueChanged<Rutina> onEdit;
+  final ValueChanged<String> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -142,9 +121,9 @@ class _RutinasList extends StatelessWidget {
         delay: Duration(milliseconds: i * 80),
         child: RutinaCard(
           rutina: rutinas[i],
-          onToggle: (v) => onToggle(i, v),
-          onTap: () => onEdit(i),
-          onDelete: () => onDelete(i),
+          onToggle: (v) => onToggle(rutinas[i].id, v),
+          onTap: () => onEdit(rutinas[i]),
+          onDelete: () => onDelete(rutinas[i].id),
         ),
       ),
     );

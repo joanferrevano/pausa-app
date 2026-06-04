@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
+import 'core/services/hive_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await HiveService.init();
 
   // Solo portrait
   await SystemChrome.setPreferredOrientations([

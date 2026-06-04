@@ -1,43 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../shared/providers/pausas_provider.dart';
 import '../models/pausa_config.dart';
 import '../widgets/pausa_app_card.dart';
 import '../widgets/add_pausa_sheet.dart';
 import '../widgets/empty_pausas_state.dart';
 
-final _mockPausas = [
-  const PausaConfig(
-    appName: 'Instagram',
-    packageName: 'com.instagram.android',
-    waitSeconds: 15,
-    maxMinutes: 20,
-  ),
-  const PausaConfig(
-    appName: 'TikTok',
-    packageName: 'com.zhiliaoapp.musically',
-    waitSeconds: 30,
-    maxMinutes: 10,
-  ),
-];
-
-class PausasScreen extends StatefulWidget {
+class PausasScreen extends ConsumerWidget {
   const PausasScreen({super.key});
 
-  @override
-  State<PausasScreen> createState() => _PausasScreenState();
-}
-
-class _PausasScreenState extends State<PausasScreen> {
-  late final List<PausaConfig> _pausas;
-
-  @override
-  void initState() {
-    super.initState();
-    _pausas = List.of(_mockPausas);
-  }
-
-  Future<void> _openSheet({PausaConfig? existing, int? editIndex}) async {
+  Future<void> _openSheet(
+    BuildContext context,
+    WidgetRef ref, {
+    PausaConfig? existing,
+    int? editIndex,
+  }) async {
     final result = await showModalBottomSheet<PausaConfig>(
       context: context,
       isScrollControlled: true,
@@ -45,27 +24,17 @@ class _PausasScreenState extends State<PausasScreen> {
       builder: (_) => AddPausaSheet(existing: existing),
     );
     if (result == null) return;
-    setState(() {
-      if (editIndex != null) {
-        _pausas[editIndex] = result;
-      } else {
-        _pausas.add(result);
-      }
-    });
-  }
-
-  void _toggle(int index, bool value) {
-    setState(() {
-      _pausas[index] = _pausas[index].copyWith(isActive: value);
-    });
-  }
-
-  void _delete(int index) {
-    setState(() => _pausas.removeAt(index));
+    final notifier = ref.read(pausasProvider.notifier);
+    if (editIndex != null) {
+      await notifier.updatePausa(editIndex, result);
+    } else {
+      await notifier.addPausa(result);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pausas = ref.watch(pausasProvider);
     return Scaffold(
       backgroundColor: PausaColors.black,
       body: SafeArea(
@@ -73,22 +42,24 @@ class _PausasScreenState extends State<PausasScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Header(onAdd: () => _openSheet()),
+            _Header(onAdd: () => _openSheet(context, ref)),
             Expanded(
-              child: _pausas.isEmpty
+              child: pausas.isEmpty
                   ? const EmptyPausasState()
                   : _PausasList(
-                      pausas: _pausas,
-                      onToggle: _toggle,
+                      pausas: pausas,
+                      onToggle: (i, v) =>
+                          ref.read(pausasProvider.notifier).togglePausa(i, v),
                       onEdit: (i) =>
-                          _openSheet(existing: _pausas[i], editIndex: i),
-                      onDelete: _delete,
+                          _openSheet(context, ref, existing: pausas[i], editIndex: i),
+                      onDelete: (i) =>
+                          ref.read(pausasProvider.notifier).deletePausa(i),
                     ),
             ),
           ],
         ),
       ),
-      floatingActionButton: _AddFab(onTap: () => _openSheet()),
+      floatingActionButton: _AddFab(onTap: () => _openSheet(context, ref)),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }

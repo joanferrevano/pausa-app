@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets/fade_slide_in.dart';
 import '../../../app/widgets/pausa_primary_button.dart';
+import '../../../shared/providers/user_provider.dart';
 
-class FormScreen extends StatefulWidget {
+class FormScreen extends ConsumerStatefulWidget {
   const FormScreen({super.key});
 
   @override
-  State<FormScreen> createState() => _FormScreenState();
+  ConsumerState<FormScreen> createState() => _FormScreenState();
 }
 
-class _FormScreenState extends State<FormScreen> {
+class _FormScreenState extends ConsumerState<FormScreen> {
   final TextEditingController _nameController = TextEditingController();
   double _hours = 3.5;
 
@@ -23,7 +25,7 @@ class _FormScreenState extends State<FormScreen> {
     super.dispose();
   }
 
-  void _continuar() {
+  Future<void> _continuar() async {
     final nombre = _nameController.text.trim();
     if (nombre.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -36,6 +38,8 @@ class _FormScreenState extends State<FormScreen> {
       );
       return;
     }
+    await ref.read(userProvider.notifier).saveUser(nombre, _hours);
+    if (!mounted) return;
     context.goNamed(
       'calculando',
       extra: {'nombre': nombre, 'horas': _hours},

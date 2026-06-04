@@ -1,5 +1,10 @@
-class PausaConfig {
-  const PausaConfig({
+import 'package:hive_flutter/hive_flutter.dart';
+
+part 'pausa_config.g.dart';
+
+@HiveType(typeId: 0)
+class PausaConfig extends HiveObject {
+  PausaConfig({
     required this.appName,
     required this.packageName,
     required this.waitSeconds,
@@ -7,11 +12,20 @@ class PausaConfig {
     this.isActive = true,
   });
 
-  final String appName;
-  final String packageName;
-  final int waitSeconds;
-  final int maxMinutes; // 0 = sin límite
-  final bool isActive;
+  @HiveField(0)
+  String appName;
+
+  @HiveField(1)
+  String packageName;
+
+  @HiveField(2)
+  int waitSeconds;
+
+  @HiveField(3)
+  int maxMinutes; // 0 = sin límite
+
+  @HiveField(4)
+  bool isActive;
 
   PausaConfig copyWith({
     String? appName,
@@ -19,15 +33,14 @@ class PausaConfig {
     int? waitSeconds,
     int? maxMinutes,
     bool? isActive,
-  }) {
-    return PausaConfig(
-      appName: appName ?? this.appName,
-      packageName: packageName ?? this.packageName,
-      waitSeconds: waitSeconds ?? this.waitSeconds,
-      maxMinutes: maxMinutes ?? this.maxMinutes,
-      isActive: isActive ?? this.isActive,
-    );
-  }
+  }) =>
+      PausaConfig(
+        appName: appName ?? this.appName,
+        packageName: packageName ?? this.packageName,
+        waitSeconds: waitSeconds ?? this.waitSeconds,
+        maxMinutes: maxMinutes ?? this.maxMinutes,
+        isActive: isActive ?? this.isActive,
+      );
 
   Map<String, dynamic> toMap() => {
         'appName': appName,

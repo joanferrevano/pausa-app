@@ -1,96 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../shared/providers/bloqueos_provider.dart';
 import '../models/bloqueo.dart';
 import '../widgets/bloqueo_template_card.dart';
 import '../widgets/active_bloqueo_banner.dart';
 import '../widgets/add_bloqueo_sheet.dart';
 import '../widgets/empty_bloqueos_state.dart';
 
-final _mockBloqueos = [
-  const Bloqueo(
-    id: 'b1',
-    name: 'Foco total',
-    emoji: '🎯',
-    appNames: ['Instagram', 'TikTok', 'YouTube', 'Twitter', 'Facebook', 'Snapchat'],
-    durationMinutes: 120,
-  ),
-  const Bloqueo(
-    id: 'b2',
-    name: 'Estudio',
-    emoji: '📚',
-    appNames: ['Instagram', 'TikTok', 'YouTube', 'Twitter'],
-    durationMinutes: 60,
-  ),
-  const Bloqueo(
-    id: 'b3',
-    name: 'Gimnasio',
-    emoji: '🏋️',
-    appNames: ['Instagram', 'TikTok', 'Twitter', 'Facebook'],
-    durationMinutes: 45,
-  ),
-  const Bloqueo(
-    id: 'b4',
-    name: 'Noche',
-    emoji: '🌙',
-    appNames: ['Instagram', 'TikTok', 'YouTube', 'Twitter', 'Facebook', 'Snapchat', 'Twitch'],
-    durationMinutes: 480,
-  ),
-  const Bloqueo(
-    id: 'b5',
-    name: 'Trabajo',
-    emoji: '💼',
-    appNames: ['Instagram', 'TikTok', 'YouTube', 'Twitter', 'Facebook', 'Snapchat'],
-    durationMinutes: 240,
-  ),
-];
-
-class BloqueosScreen extends StatefulWidget {
+class BloqueosScreen extends ConsumerWidget {
   const BloqueosScreen({super.key});
 
-  @override
-  State<BloqueosScreen> createState() => _BloqueosScreenState();
-}
-
-class _BloqueosScreenState extends State<BloqueosScreen> {
-  late final List<Bloqueo> _bloqueos;
-
-  @override
-  void initState() {
-    super.initState();
-    _bloqueos = List.of(_mockBloqueos);
-  }
-
-  Bloqueo? get _active =>
-      _bloqueos.where((b) => b.isActive).firstOrNull;
-
-  void _activate(int i) {
-    setState(() {
-      for (var j = 0; j < _bloqueos.length; j++) {
-        _bloqueos[j] = _bloqueos[j].copyWith(
-          isActive: j == i,
-          activatedAt: j == i ? DateTime.now() : null,
-          clearActivatedAt: j != i,
-        );
-      }
-    });
-  }
-
-  void _deactivate(int i) {
-    setState(() {
-      _bloqueos[i] = _bloqueos[i].copyWith(
-        isActive: false,
-        clearActivatedAt: true,
-      );
-    });
-  }
-
-  void _deactivateActive() {
-    final idx = _bloqueos.indexWhere((b) => b.isActive);
-    if (idx != -1) _deactivate(idx);
-  }
-
-  Future<void> _openSheet({Bloqueo? existing, int? editIndex}) async {
+  Future<void> _openSheet(
+    BuildContext context,
+    WidgetRef ref, {
+    Bloqueo? existing,
+  }) async {
     final result = await showModalBottomSheet<Bloqueo>(
       context: context,
       isScrollControlled: true,
@@ -98,18 +24,15 @@ class _BloqueosScreenState extends State<BloqueosScreen> {
       builder: (_) => AddBloqueoSheet(existing: existing),
     );
     if (result == null) return;
-    setState(() {
-      if (editIndex != null) {
-        _bloqueos[editIndex] = result;
-      } else {
-        _bloqueos.add(result);
-      }
-    });
+    await ref.read(bloqueosProvider.notifier).addBloqueo(result);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final active = _active;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bloqueos = ref.watch(bloqueosProvider);
+    final active = bloqueos.where((b) => b.isActive).firstOrNull;
+    final notifier = ref.read(bloqueosProvider.notifier);
+
     return Scaffold(
       backgroundColor: PausaColors.black,
       body: SafeArea(
@@ -122,12 +45,13 @@ class _BloqueosScreenState extends State<BloqueosScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Header(onAdd: () => _openSheet()),
+                    _Header(onAdd: () => _openSheet(context, ref)),
                     if (active != null) ...[
                       const SizedBox(height: 16),
                       ActiveBloqueoBanner(
                         bloqueo: active,
-                        onDeactivate: _deactivateActive,
+                        onDeactivate: () =>
+                            notifier.deactivateBloqueo(active.id),
                       ),
                     ],
                     const SizedBox(height: 24),
@@ -144,7 +68,7 @@ class _BloqueosScreenState extends State<BloqueosScreen> {
                 ),
               ),
             ),
-            if (_bloqueos.isEmpty)
+            if (bloqueos.isEmpty)
               const SliverFillRemaining(child: EmptyBloqueosState())
             else
               SliverPadding(
@@ -161,19 +85,22 @@ class _BloqueosScreenState extends State<BloqueosScreen> {
                     (_, i) => _FadeSlide(
                       delay: Duration(milliseconds: i * 80),
                       child: BloqueoTemplateCard(
-                        bloqueo: _bloqueos[i],
-                        onActivate: () => _activate(i),
-                        onDeactivate: () => _deactivate(i),
+                        bloqueo: bloqueos[i],
+                        onActivate: () =>
+                            notifier.activateBloqueo(bloqueos[i].id),
+                        onDeactivate: () =>
+                            notifier.deactivateBloqueo(bloqueos[i].id),
                       ),
                     ),
-                    childCount: _bloqueos.length,
+                    childCount: bloqueos.length,
                   ),
                 ),
               ),
           ],
         ),
       ),
-      floatingActionButton: _CreateFab(onTap: () => _openSheet()),
+      floatingActionButton:
+          _CreateFab(onTap: () => _openSheet(context, ref)),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
