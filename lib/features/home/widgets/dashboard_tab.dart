@@ -1,59 +1,106 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../shared/providers/usage_stats_provider.dart';
 import 'screen_time_card.dart';
 import 'mini_stat_card.dart';
 import 'app_usage_card.dart';
 import 'motivation_banner.dart';
+import 'permission_banner.dart';
 
-class DashboardTab extends StatefulWidget {
+class DashboardTab extends ConsumerStatefulWidget {
   const DashboardTab({super.key});
 
   @override
-  State<DashboardTab> createState() => _DashboardTabState();
+  ConsumerState<DashboardTab> createState() => _DashboardTabState();
 }
 
-class _DashboardTabState extends State<DashboardTab> {
-  final List<_FadeSlide> _items = [];
+class _DashboardTabState extends ConsumerState<DashboardTab>
+    with WidgetsBindingObserver {
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _items.addAll([
-      const _FadeSlide(delay: 0, child: _Header()),
-      const _FadeSlide(delay: 80, child: ScreenTimeCard()),
-      const _FadeSlide(
-        delay: 160,
-        child: Row(
-          children: [
-            MiniStatCard(
-              label: 'Pausas activas hoy',
-              value: 3,
-              unit: 'pausas',
-              animationDelay: Duration(milliseconds: 240),
-            ),
-            SizedBox(width: 12),
-            MiniStatCard(
-              label: 'Racha actual',
-              value: 7,
-              unit: 'días',
-              animationDelay: Duration(milliseconds: 320),
-            ),
-          ],
-        ),
-      ),
-      const _FadeSlide(delay: 240, child: AppUsageCard()),
-      const _FadeSlide(delay: 320, child: MotivationBanner()),
-    ]);
+    WidgetsBinding.instance.addObserver(this);
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(usageStatsProvider.notifier).load();
+    }
+  }
+
+  void _startTimer() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) ref.read(usageStatsProvider.notifier).load();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
+    final usage = ref.watch(usageStatsProvider);
+
+    return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      itemCount: _items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (_, i) => _items[i],
+      children: [
+        const _FadeSlide(
+          delay: 0,
+          child: _Header(),
+        ),
+        const SizedBox(height: 16),
+        if (!usage.hasPermission && !usage.isLoading) ...[
+          const _FadeSlide(delay: 40, child: PermissionBanner()),
+          const SizedBox(height: 16),
+        ],
+        _FadeSlide(
+          delay: 80,
+          child: ScreenTimeCard(
+            totalMs: usage.totalScreenTimeMs,
+            productiveMs: usage.productiveMs,
+            unproductiveMs: usage.unproductiveMs,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const _FadeSlide(
+          delay: 160,
+          child: Row(
+            children: [
+              MiniStatCard(
+                label: 'Pausas activas hoy',
+                value: 3,
+                unit: 'pausas',
+                animationDelay: Duration(milliseconds: 240),
+              ),
+              SizedBox(width: 12),
+              MiniStatCard(
+                label: 'Racha actual',
+                value: 7,
+                unit: 'días',
+                animationDelay: Duration(milliseconds: 320),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _FadeSlide(
+          delay: 240,
+          child: AppUsageCard(apps: usage.topApps),
+        ),
+        const SizedBox(height: 16),
+        const _FadeSlide(delay: 320, child: MotivationBanner()),
+      ],
     );
   }
 }
@@ -118,7 +165,6 @@ class _FadeSlideState extends State<_FadeSlide>
       begin: const Offset(0, 0.04),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-
     Future.delayed(Duration(milliseconds: widget.delay), () {
       if (mounted) _ctrl.forward();
     });

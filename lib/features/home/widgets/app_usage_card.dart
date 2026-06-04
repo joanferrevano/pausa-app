@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/models/app_usage_info.dart';
 import 'app_usage_row.dart';
 
 const _title = 'Apps más usadas hoy';
 
-const _apps = [
-  ('Instagram', '48m', 0.78),
-  ('YouTube', '31m', 0.50),
-  ('TikTok', '22m', 0.36),
-];
-
 class AppUsageCard extends StatelessWidget {
-  const AppUsageCard({super.key});
+  const AppUsageCard({super.key, required this.apps});
+
+  final List<AppUsageInfo> apps;
 
   @override
   Widget build(BuildContext context) {
+    final display = apps.take(3).toList();
+    final maxMs =
+        display.isEmpty ? 1 : display.first.totalTimeMs;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -37,15 +38,24 @@ class AppUsageCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          for (var i = 0; i < _apps.length; i++) ...[
-            AppUsageRow(
-              appName: _apps[i].$1,
-              timeLabel: _apps[i].$2,
-              fraction: _apps[i].$3,
-              animationDelay: Duration(milliseconds: 200 + i * 80),
-            ),
-            if (i < _apps.length - 1) const SizedBox(height: 16),
-          ],
+          if (display.isEmpty)
+            Text(
+              'Sin datos aún',
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                color: PausaColors.textMuted,
+              ),
+            )
+          else
+            for (var i = 0; i < display.length; i++) ...[
+              AppUsageRow(
+                appName: display[i].appName,
+                timeLabel: display[i].formattedTime,
+                fraction: display[i].totalTimeMs / maxMs,
+                animationDelay: Duration(milliseconds: 200 + i * 80),
+              ),
+              if (i < display.length - 1) const SizedBox(height: 16),
+            ],
         ],
       ),
     );

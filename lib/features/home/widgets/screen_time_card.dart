@@ -1,21 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/services/usage_stats_service.dart';
 import 'donut_chart.dart';
 
 const _productiveColor = Color(0xFF4CAF50);
-
 const _labelHoy = 'Tiempo de pantalla hoy';
-const _labelAyer = 'Ayer: 2h 17m';
-const _labelTotal = '2h 34m';
-const _labelProductivo = '28m';
-const _labelImproductivo = '2h 6m';
 
 class ScreenTimeCard extends StatelessWidget {
-  const ScreenTimeCard({super.key});
+  const ScreenTimeCard({
+    super.key,
+    required this.totalMs,
+    required this.productiveMs,
+    required this.unproductiveMs,
+  });
+
+  final int totalMs;
+  final int productiveMs;
+  final int unproductiveMs;
+
+  double get _productiveFraction =>
+      totalMs == 0 ? 0 : (productiveMs / totalMs).clamp(0.0, 1.0);
+
+  double get _unproductiveFraction =>
+      totalMs == 0 ? 0 : (unproductiveMs / totalMs).clamp(0.0, 1.0);
 
   @override
   Widget build(BuildContext context) {
+    final totalLabel = UsageStatsService.formatDuration(totalMs);
+    final productiveLabel = UsageStatsService.formatDuration(productiveMs);
+    final unproductiveLabel = UsageStatsService.formatDuration(unproductiveMs);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
@@ -24,15 +39,21 @@ class ScreenTimeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: PausaColors.border, width: 0.5),
       ),
-      child: const Column(
+      child: Column(
         children: [
           _CardHeader(),
-          SizedBox(height: 24),
-          DonutChart(productive: 0.18, unproductive: 0.72),
-          SizedBox(height: 24),
-          _StatsRow(),
-          SizedBox(height: 16),
-          _TotalsRow(),
+          const SizedBox(height: 24),
+          DonutChart(
+            productive: _productiveFraction,
+            unproductive: _unproductiveFraction,
+          ),
+          const SizedBox(height: 24),
+          _StatsRow(
+            productiveLabel: productiveLabel,
+            unproductiveLabel: unproductiveLabel,
+          ),
+          const SizedBox(height: 16),
+          _TotalsRow(totalLabel: totalLabel),
         ],
       ),
     );
@@ -40,8 +61,6 @@ class ScreenTimeCard extends StatelessWidget {
 }
 
 class _CardHeader extends StatelessWidget {
-  const _CardHeader();
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -56,39 +75,37 @@ class _CardHeader extends StatelessWidget {
             letterSpacing: 0.1,
           ),
         ),
-        Container(
-          width: 24,
-          height: 1,
-          color: PausaColors.border,
-        ),
+        Container(width: 24, height: 1, color: PausaColors.border),
       ],
     );
   }
 }
 
 class _StatsRow extends StatelessWidget {
-  const _StatsRow();
+  const _StatsRow({
+    required this.productiveLabel,
+    required this.unproductiveLabel,
+  });
+
+  final String productiveLabel;
+  final String unproductiveLabel;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: _StatCell(
             label: 'Productivo',
-            value: _labelProductivo,
+            value: productiveLabel,
             valueColor: _productiveColor,
           ),
         ),
-        Container(
-          width: 0.5,
-          height: 36,
-          color: PausaColors.border,
-        ),
-        const Expanded(
+        Container(width: 0.5, height: 36, color: PausaColors.border),
+        Expanded(
           child: _StatCell(
             label: 'Improductivo',
-            value: _labelImproductivo,
+            value: unproductiveLabel,
             valueColor: PausaColors.red,
             align: CrossAxisAlignment.end,
           ),
@@ -123,7 +140,6 @@ class _StatCell extends StatelessWidget {
             label,
             style: GoogleFonts.dmSans(
               fontSize: 11,
-              fontWeight: FontWeight.w400,
               color: PausaColors.textSecondary,
             ),
           ),
@@ -144,7 +160,8 @@ class _StatCell extends StatelessWidget {
 }
 
 class _TotalsRow extends StatelessWidget {
-  const _TotalsRow();
+  const _TotalsRow({required this.totalLabel});
+  final String totalLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -155,32 +172,20 @@ class _TotalsRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Text(
-                'Total hoy  ',
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  color: PausaColors.textSecondary,
-                ),
-              ),
-              Text(
-                _labelTotal,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: PausaColors.white,
-                ),
-              ),
-            ],
-          ),
           Text(
-            _labelAyer,
+            'Total hoy  ',
             style: GoogleFonts.dmSans(
               fontSize: 12,
               color: PausaColors.textSecondary,
+            ),
+          ),
+          Text(
+            totalLabel,
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: PausaColors.white,
             ),
           ),
         ],
