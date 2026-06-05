@@ -37,6 +37,9 @@ class MainActivity : FlutterActivity() {
                             result.success(null)
                         }
 
+                        "getInstalledApps" ->
+                            result.success(UsageStatsHelper.getInstalledApps(this))
+
                         "getAppIcon" -> {
                             val packageName = call.argument<String>("packageName") ?: ""
                             result.success(UsageStatsHelper.getAppIcon(this, packageName))

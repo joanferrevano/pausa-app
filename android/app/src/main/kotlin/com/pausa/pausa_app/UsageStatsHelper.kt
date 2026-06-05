@@ -3,8 +3,12 @@ package com.pausa.pausa_app
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.PorterDuff
 import java.io.ByteArrayOutputStream
 import java.util.Calendar
 
@@ -46,9 +50,8 @@ object UsageStatsHelper {
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             when (event.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                UsageEvents.Event.MOVE_TO_FOREGROUND ->
                     lastForeground[event.packageName] = event.timeStamp
-                }
                 UsageEvents.Event.MOVE_TO_BACKGROUND -> {
                     val start = lastForeground.remove(event.packageName)
                     if (start != null) {
@@ -85,50 +88,113 @@ object UsageStatsHelper {
                     "packageName" to pkg,
                     "appName" to appName,
                     "totalTimeMs" to ms,
-                    "category" to 0
+                    "category" to 0,
                 )
             }
     }
 
-    fun getTotalScreenTimeMs(context: Context): Long {
-        return getTodayUsageMap(context).values.sum()
-    }
+    fun getTotalScreenTimeMs(context: Context): Long =
+        getTodayUsageMap(context).values.sum()
 
-    fun getProductiveTimeMs(context: Context): Long {
-        return getTodayUsageMap(context)
-            .filter { it.key !in unproductivePackages }
-            .values.sum()
-    }
+    fun getProductiveTimeMs(context: Context): Long =
+        getTodayUsageMap(context).filter { it.key !in unproductivePackages }.values.sum()
 
-    fun getUnproductiveTimeMs(context: Context): Long {
-        return getTodayUsageMap(context)
-            .filter { it.key in unproductivePackages }
-            .values.sum()
-    }
+    fun getUnproductiveTimeMs(context: Context): Long =
+        getTodayUsageMap(context).filter { it.key in unproductivePackages }.values.sum()
 
     fun hasPermission(context: Context): Boolean {
         return try {
             val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
-            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 1000, now)
+            val stats = usm.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                now - 1000L * 60 * 60 * 24,
+                now,
+            )
             stats != null && stats.isNotEmpty()
         } catch (e: Exception) { false }
+    }
+
+    fun getInstalledApps(context: Context): List<Map<String, Any>> {
+        val pm = context.packageManager
+        val results = mutableMapOf<String, String>()
+
+        // Strategy 1: getLaunchIntentForPackage — most reliable on stock Android
+        try {
+            pm.getInstalledPackages(PackageManager.GET_META_DATA).forEach { pkgInfo ->
+                val pkgName = pkgInfo?.packageName ?: return@forEach
+                val appInfo = pkgInfo.applicationInfo ?: return@forEach
+                if (pm.getLaunchIntentForPackage(pkgName) != null &&
+                    pkgName != context.packageName) {
+                    val name = try {
+                        pm.getApplicationLabel(appInfo).toString()
+                    } catch (e: Exception) { pkgName }
+                    results[pkgName] = name
+                }
+            }
+        } catch (e: Exception) {}
+
+        // Strategy 2: ACTION_MAIN + CATEGORY_LAUNCHER — catches MIUI-specific apps
+        try {
+            val intent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val flag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
+                PackageManager.MATCH_ALL else 0
+            pm.queryIntentActivities(intent, flag).forEach { info ->
+                val pkg = info?.activityInfo?.packageName ?: return@forEach
+                if (pkg != context.packageName) {
+                    val label = try {
+                        info.loadLabel(pm).toString()
+                    } catch (e: Exception) { pkg }
+                    results[pkg] = label
+                }
+            }
+        } catch (e: Exception) {}
+
+        // Strategy 3: getInstalledApplications — catches remaining user apps on MIUI
+        try {
+            pm.getInstalledApplications(PackageManager.GET_META_DATA).forEach { appInfo ->
+                val pkg = appInfo?.packageName ?: return@forEach
+                if (pkg !in results && pkg != context.packageName) {
+                    val hasLauncher = pm.getLaunchIntentForPackage(pkg) != null
+                    val isUserApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0
+                    if (hasLauncher || isUserApp) {
+                        val label = try {
+                            pm.getApplicationLabel(appInfo).toString()
+                        } catch (e: Exception) { pkg }
+                        results[pkg] = label
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+
+        return results.entries
+            .map { (pkg, name) -> mapOf("packageName" to pkg, "appName" to name) }
+            .sortedBy { it["appName"] as String }
     }
 
     fun getAppIcon(context: Context, packageName: String): ByteArray? {
         return try {
             val pm = context.packageManager
-            val drawable = pm.getApplicationIcon(packageName)
-            val bitmap = Bitmap.createBitmap(
-                drawable.intrinsicWidth.coerceAtLeast(1),
-                drawable.intrinsicHeight.coerceAtLeast(1),
-                Bitmap.Config.ARGB_8888
-            )
+            val drawable = try {
+                pm.getApplicationIcon(packageName)
+            } catch (e: PackageManager.NameNotFoundException) {
+                return null
+            }
+
+            val density = context.resources.displayMetrics.density
+            val size = (48 * density).toInt().coerceAtLeast(48)
+
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            drawable.setBounds(0, 0, size, size)
             drawable.draw(canvas)
+
             val stream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            bitmap.recycle()
             stream.toByteArray()
         } catch (e: Exception) { null }
     }

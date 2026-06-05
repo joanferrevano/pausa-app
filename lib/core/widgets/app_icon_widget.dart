@@ -20,48 +20,87 @@ class AppIconWidget extends StatefulWidget {
 }
 
 class _AppIconWidgetState extends State<AppIconWidget> {
-  Future<Uint8List?>? _future;
+  Uint8List? _bytes;
+  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    if (UsageStatsService.getCachedIcon(widget.packageName) == null) {
-      _future = UsageStatsService.getAppIcon(widget.packageName);
+    final cached = UsageStatsService.getCachedIcon(widget.packageName);
+    if (cached != null) {
+      _bytes = cached;
+      _loaded = true;
+    } else {
+      _loadIcon();
     }
   }
 
   @override
   void didUpdateWidget(AppIconWidget old) {
     super.didUpdateWidget(old);
-    if (old.packageName != widget.packageName &&
-        UsageStatsService.getCachedIcon(widget.packageName) == null) {
-      setState(() {
-        _future = UsageStatsService.getAppIcon(widget.packageName);
-      });
+    if (old.packageName != widget.packageName) {
+      final cached = UsageStatsService.getCachedIcon(widget.packageName);
+      if (cached != null) {
+        setState(() { _bytes = cached; _loaded = true; });
+      } else {
+        setState(() { _bytes = null; _loaded = false; });
+        _loadIcon();
+      }
     }
   }
 
-  Widget _buildIcon(Uint8List bytes) {
-    final sz = widget.size;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(sz * 0.22),
-      child: Image.memory(
-        bytes,
-        width: sz,
-        height: sz,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-      ),
-    );
+  Future<void> _loadIcon() async {
+    final bytes = await UsageStatsService.getAppIcon(widget.packageName);
+    if (mounted) {
+      setState(() { _bytes = bytes; _loaded = true; });
+    }
   }
 
-  Widget _buildFallback() {
+  @override
+  Widget build(BuildContext context) {
     final sz = widget.size;
-    final name = formatAppName(widget.packageName);
+
+    if (_loaded && _bytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(sz * 0.22),
+        child: Image.memory(
+          _bytes!,
+          width: sz,
+          height: sz,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+      );
+    }
+
+    if (!_loaded) {
+      return Container(
+        width: sz,
+        height: sz,
+        decoration: BoxDecoration(
+          color: PausaColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(sz * 0.22),
+        ),
+      );
+    }
+
+    return _AppIconFallback(packageName: widget.packageName, size: sz);
+  }
+}
+
+class _AppIconFallback extends StatelessWidget {
+  const _AppIconFallback({required this.packageName, required this.size});
+
+  final String packageName;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = formatAppName(packageName);
     final initial = appInitial(name);
     return Container(
-      width: sz,
-      height: sz,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: PausaColors.surfaceAlt,
         shape: BoxShape.circle,
@@ -71,35 +110,11 @@ class _AppIconWidgetState extends State<AppIconWidget> {
         child: Text(
           initial,
           style: GoogleFonts.dmSans(
-            fontSize: sz * 0.4,
+            fontSize: size * 0.4,
             fontWeight: FontWeight.w700,
             color: PausaColors.textSecondary,
           ),
         ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sz = widget.size;
-    final cached = UsageStatsService.getCachedIcon(widget.packageName);
-
-    if (cached != null) {
-      return SizedBox(width: sz, height: sz, child: _buildIcon(cached));
-    }
-
-    return SizedBox(
-      width: sz,
-      height: sz,
-      child: FutureBuilder<Uint8List?>(
-        future: _future,
-        builder: (_, snap) {
-          if (snap.hasData && snap.data != null) {
-            return _buildIcon(snap.data!);
-          }
-          return _buildFallback();
-        },
       ),
     );
   }

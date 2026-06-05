@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
+import '../../../core/widgets/app_picker_sheet.dart';
 import '../models/pausa_config.dart';
-import 'app_selector_list.dart';
 import 'time_picker_row.dart';
 
 const _waitOptions = ['10s', '15s', '30s', '1min', '2min'];
@@ -30,7 +31,6 @@ String _minutesToMaxLabel(int m) {
 
 class AddPausaSheet extends StatefulWidget {
   const AddPausaSheet({super.key, this.existing});
-
   final PausaConfig? existing;
 
   @override
@@ -58,11 +58,26 @@ class _AddPausaSheetState extends State<AddPausaSheet> {
     }
   }
 
-  void _onAppSelected(AppDef app) {
-    setState(() {
-      _selectedPackage = app.package;
-      _selectedAppName = app.name;
-    });
+  Future<void> _openPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AppPickerSheet(
+        multiSelect: false,
+        selectedPackages:
+            _selectedPackage != null ? [_selectedPackage!] : [],
+        onConfirm: (pkgs) {
+          if (pkgs.isNotEmpty) {
+            setState(() {
+              _selectedPackage = pkgs.first;
+              _selectedAppName = pkgs.first;
+            });
+          }
+          Navigator.of(context).pop();
+        },
+      ),
+    );
   }
 
   void _save() {
@@ -73,7 +88,7 @@ class _AddPausaSheetState extends State<AddPausaSheet> {
       return;
     }
     final config = PausaConfig(
-      appName: _selectedAppName!,
+      appName: _selectedAppName ?? _selectedPackage!,
       packageName: _selectedPackage!,
       waitSeconds: _waitToSeconds(_waitSelected),
       maxMinutes: _maxToMinutes(_maxSelected),
@@ -109,23 +124,13 @@ class _AddPausaSheetState extends State<AddPausaSheet> {
           Text(
             widget.existing != null ? 'Editar pausa' : 'Nueva pausa',
             style: GoogleFonts.dmSerifDisplay(
-              fontSize: 22,
-              color: PausaColors.white,
-            ),
+                fontSize: 22, color: PausaColors.white),
           ),
           const SizedBox(height: 24),
-          Text(
-            'Selecciona la app',
-            style: GoogleFonts.dmSans(
-              fontSize: 12,
-              color: PausaColors.textSecondary,
-              letterSpacing: 0.1,
-            ),
-          ),
-          const SizedBox(height: 16),
-          AppSelectorList(
-            selectedPackage: _selectedPackage,
-            onSelected: _onAppSelected,
+          _AppPickerRow(
+            packageName: _selectedPackage,
+            appName: _selectedAppName,
+            onTap: _openPicker,
           ),
           const SizedBox(height: 28),
           TimePickerRow(
@@ -144,6 +149,59 @@ class _AddPausaSheetState extends State<AddPausaSheet> {
           const SizedBox(height: 32),
           _SaveButton(onTap: _save),
         ],
+      ),
+    );
+  }
+}
+
+class _AppPickerRow extends StatelessWidget {
+  const _AppPickerRow({
+    required this.packageName,
+    required this.appName,
+    required this.onTap,
+  });
+
+  final String? packageName;
+  final String? appName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: PausaColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: PausaColors.border, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            if (packageName != null)
+              AppIconWidget(packageName: packageName!, size: 32)
+            else
+              const Icon(Icons.apps_rounded,
+                  color: PausaColors.textMuted, size: 32),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                packageName != null
+                    ? (appName ?? packageName!)
+                    : 'Seleccionar app',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  color: packageName != null
+                      ? PausaColors.textPrimary
+                      : PausaColors.textMuted,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: PausaColors.textMuted, size: 20),
+          ],
+        ),
       ),
     );
   }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
+import '../../../core/widgets/app_picker_sheet.dart';
 import '../models/bloqueo.dart';
-import 'bloqueo_app_selector.dart';
 import 'bloqueo_duration_picker.dart';
 
 const _emojis = [
@@ -21,7 +22,7 @@ class AddBloqueoSheet extends StatefulWidget {
 class _AddBloqueoSheetState extends State<AddBloqueoSheet> {
   late final TextEditingController _nameCtrl;
   late String _emoji;
-  late List<String> _apps;
+  late List<String> _apps; // package names
   late String _duration;
 
   @override
@@ -51,6 +52,22 @@ class _AddBloqueoSheetState extends State<AddBloqueoSheet> {
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _openPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AppPickerSheet(
+        multiSelect: true,
+        selectedPackages: _apps,
+        onConfirm: (pkgs) {
+          setState(() => _apps = pkgs);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
   }
 
   void _save() {
@@ -99,9 +116,7 @@ class _AddBloqueoSheetState extends State<AddBloqueoSheet> {
             Text(
               widget.existing != null ? 'Editar jaula' : 'Nueva jaula',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 22,
-                color: PausaColors.white,
-              ),
+                  fontSize: 22, color: PausaColors.white),
             ),
             const SizedBox(height: 24),
             _NameField(controller: _nameCtrl),
@@ -114,15 +129,8 @@ class _AddBloqueoSheetState extends State<AddBloqueoSheet> {
             ),
             const SizedBox(height: 28),
             const _SectionLabel(label: 'Apps bloqueadas'),
-            const SizedBox(height: 16),
-            BloqueoAppSelector(
-              selectedNames: _apps,
-              onToggle: (name) => setState(() {
-                _apps.contains(name)
-                    ? _apps.remove(name)
-                    : _apps.add(name);
-              }),
-            ),
+            const SizedBox(height: 12),
+            _MultiAppPickerRow(packages: _apps, onTap: _openPicker),
             const SizedBox(height: 28),
             const _SectionLabel(label: 'Duración'),
             const SizedBox(height: 12),
@@ -132,6 +140,58 @@ class _AddBloqueoSheetState extends State<AddBloqueoSheet> {
             ),
             const SizedBox(height: 32),
             _SaveButton(onTap: _save),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiAppPickerRow extends StatelessWidget {
+  const _MultiAppPickerRow({required this.packages, required this.onTap});
+  final List<String> packages;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: PausaColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: PausaColors.border, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            if (packages.isEmpty)
+              const Icon(Icons.apps_rounded,
+                  color: PausaColors.textMuted, size: 28)
+            else
+              ...packages.take(5).map(
+                    (pkg) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: AppIconWidget(packageName: pkg, size: 28),
+                    ),
+                  ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                packages.isEmpty
+                    ? 'Seleccionar apps'
+                    : '${packages.length} app${packages.length == 1 ? '' : 's'}',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  color: packages.isEmpty
+                      ? PausaColors.textMuted
+                      : PausaColors.textSecondary,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: PausaColors.textMuted, size: 20),
           ],
         ),
       ),
@@ -150,7 +210,8 @@ class _NameField extends StatelessWidget {
       style: GoogleFonts.dmSans(fontSize: 16, color: PausaColors.white),
       decoration: InputDecoration(
         hintText: 'Nombre de la jaula',
-        hintStyle: GoogleFonts.dmSans(fontSize: 16, color: PausaColors.textMuted),
+        hintStyle:
+            GoogleFonts.dmSans(fontSize: 16, color: PausaColors.textMuted),
         enabledBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: PausaColors.border, width: 0.5),
         ),
@@ -183,9 +244,8 @@ class _EmojiPicker extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isSelected
-                    ? PausaColors.surfaceAlt
-                    : Colors.transparent,
+                color:
+                    isSelected ? PausaColors.surfaceAlt : Colors.transparent,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: isSelected

@@ -101,6 +101,7 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
       final apps = results[3] as List<AppUsageInfo>;
       await Future.wait(
         apps.map((a) => UsageStatsService.getAppIcon(a.packageName)),
+        eagerError: false,
       );
 
       state = UsageStatsState(

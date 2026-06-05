@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
+import '../../../core/widgets/app_picker_sheet.dart';
 import '../models/rutina.dart';
 import 'day_selector_row.dart';
 import 'time_range_row.dart';
-import 'rutina_app_selector.dart';
 
 class AddRutinaSheet extends StatefulWidget {
   const AddRutinaSheet({super.key, this.existing});
@@ -19,7 +20,7 @@ class _AddRutinaSheetState extends State<AddRutinaSheet> {
   late List<int> _days;
   late TimeOfDay _start;
   late TimeOfDay _end;
-  late List<String> _apps;
+  late List<String> _apps; // package names
 
   @override
   void initState() {
@@ -38,16 +39,24 @@ class _AddRutinaSheetState extends State<AddRutinaSheet> {
     super.dispose();
   }
 
-  void _toggleDay(int d) {
-    setState(() {
-      _days.contains(d) ? _days.remove(d) : _days.add(d);
-    });
-  }
+  void _toggleDay(int d) => setState(() {
+        _days.contains(d) ? _days.remove(d) : _days.add(d);
+      });
 
-  void _toggleApp(String name) {
-    setState(() {
-      _apps.contains(name) ? _apps.remove(name) : _apps.add(name);
-    });
+  Future<void> _openPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AppPickerSheet(
+        multiSelect: true,
+        selectedPackages: _apps,
+        onConfirm: (pkgs) {
+          setState(() => _apps = pkgs);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
   }
 
   void _save() {
@@ -105,9 +114,7 @@ class _AddRutinaSheetState extends State<AddRutinaSheet> {
             Text(
               widget.existing != null ? 'Editar rutina' : 'Nueva rutina',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 22,
-                color: PausaColors.white,
-              ),
+                  fontSize: 22, color: PausaColors.white),
             ),
             const SizedBox(height: 24),
             _NameField(controller: _nameCtrl),
@@ -126,13 +133,62 @@ class _AddRutinaSheetState extends State<AddRutinaSheet> {
             ),
             const SizedBox(height: 28),
             const _SectionLabel(label: 'Apps bloqueadas'),
-            const SizedBox(height: 16),
-            RutinaAppSelector(
-              selectedNames: _apps,
-              onToggle: _toggleApp,
-            ),
+            const SizedBox(height: 12),
+            _MultiAppPickerRow(packages: _apps, onTap: _openPicker),
             const SizedBox(height: 32),
             _SaveButton(onTap: _save),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiAppPickerRow extends StatelessWidget {
+  const _MultiAppPickerRow({required this.packages, required this.onTap});
+  final List<String> packages;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: PausaColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: PausaColors.border, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            if (packages.isEmpty)
+              const Icon(Icons.apps_rounded,
+                  color: PausaColors.textMuted, size: 28)
+            else
+              ...packages.take(5).map(
+                    (pkg) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: AppIconWidget(packageName: pkg, size: 28),
+                    ),
+                  ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                packages.isEmpty
+                    ? 'Seleccionar apps'
+                    : '${packages.length} app${packages.length == 1 ? '' : 's'}',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  color: packages.isEmpty
+                      ? PausaColors.textMuted
+                      : PausaColors.textSecondary,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: PausaColors.textMuted, size: 20),
           ],
         ),
       ),
@@ -148,16 +204,11 @@ class _NameField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: GoogleFonts.dmSans(
-        fontSize: 16,
-        color: PausaColors.white,
-      ),
+      style: GoogleFonts.dmSans(fontSize: 16, color: PausaColors.white),
       decoration: InputDecoration(
         hintText: 'Nombre de la rutina',
-        hintStyle: GoogleFonts.dmSans(
-          fontSize: 16,
-          color: PausaColors.textMuted,
-        ),
+        hintStyle:
+            GoogleFonts.dmSans(fontSize: 16, color: PausaColors.textMuted),
         enabledBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: PausaColors.border, width: 0.5),
         ),

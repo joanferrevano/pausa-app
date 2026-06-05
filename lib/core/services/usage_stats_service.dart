@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/app_usage_info.dart';
 
@@ -67,22 +68,49 @@ class UsageStatsService {
     }
   }
 
+  static Future<List<Map<String, String>>> getInstalledApps() async {
+    try {
+      final result = await _channel.invokeMethod<List>('getInstalledApps');
+      if (result == null) return [];
+      return result.map((e) {
+        final map = Map<String, dynamic>.from(e as Map);
+        return {
+          'packageName': map['packageName'] as String,
+          'appName': map['appName'] as String,
+        };
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   static Uint8List? getCachedIcon(String packageName) =>
       _iconCache[packageName];
 
   static Future<Uint8List?> getAppIcon(String packageName) async {
     if (_iconCache.containsKey(packageName)) return _iconCache[packageName];
     try {
-      final result = await _channel.invokeMethod(
+      final dynamic raw = await _channel.invokeMethod(
         'getAppIcon',
         {'packageName': packageName},
       );
-      final bytes = result != null
-          ? Uint8List.fromList(List<int>.from(result as List))
-          : null;
+
+      Uint8List? bytes;
+      if (raw == null) {
+        bytes = null;
+      } else if (raw is Uint8List) {
+        bytes = raw;
+      } else if (raw is List<dynamic>) {
+        bytes = Uint8List.fromList(
+            raw.map((e) => (e as num).toInt()).toList());
+      } else if (raw is List<int>) {
+        bytes = Uint8List.fromList(raw);
+      }
+
       _iconCache[packageName] = bytes;
       return bytes;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('getAppIcon error for $packageName: $e');
       _iconCache[packageName] = null;
       return null;
     }
