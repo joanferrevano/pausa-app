@@ -100,14 +100,15 @@ class _PausaAppCardState extends State<PausaAppCard> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
                             _InfoChip(
                               icon: Icons.timer_outlined,
                               label:
                                   'Espera: ${_waitLabel(widget.config.waitSeconds)}',
                             ),
-                            const SizedBox(width: 8),
                             _InfoChip(
                               icon: Icons.lock_outline_rounded,
                               label:

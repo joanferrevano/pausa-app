@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/services/usage_stats_service.dart';
 import '../../../core/widgets/app_icon_widget.dart';
 import '../../pausas/widgets/app_selector_list.dart';
 
-class RutinaAppSelector extends StatelessWidget {
+class RutinaAppSelector extends StatefulWidget {
   const RutinaAppSelector({
     super.key,
     required this.selectedNames,
@@ -13,6 +14,19 @@ class RutinaAppSelector extends StatelessWidget {
 
   final List<String> selectedNames;
   final ValueChanged<String> onToggle;
+
+  @override
+  State<RutinaAppSelector> createState() => _RutinaAppSelectorState();
+}
+
+class _RutinaAppSelectorState extends State<RutinaAppSelector> {
+  @override
+  void initState() {
+    super.initState();
+    for (final app in kAppDefs) {
+      UsageStatsService.getAppIcon(app.package);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,8 +44,8 @@ class RutinaAppSelector extends StatelessWidget {
         final app = kAppDefs[i];
         return _AppCell(
           app: app,
-          isSelected: selectedNames.contains(app.name),
-          onTap: () => onToggle(app.name),
+          isSelected: widget.selectedNames.contains(app.name),
+          onTap: () => widget.onToggle(app.name),
         );
       },
     );

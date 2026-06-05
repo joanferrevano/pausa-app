@@ -68,7 +68,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
         ref.watch(pausasProvider).where((p) => p.isActive).length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 96),
       children: [
         const _FadeSlide(
           delay: 0,
@@ -104,6 +104,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
                 value: usage.streak,
                 unit: usage.streak == 1 ? 'día' : 'días',
                 animationDelay: const Duration(milliseconds: 320),
+                showFireWhenPositive: true,
               ),
             ],
           ),

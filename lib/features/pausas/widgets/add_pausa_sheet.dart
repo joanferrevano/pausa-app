@@ -83,7 +83,8 @@ class _AddPausaSheetState extends State<AddPausaSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final bottom = mq.viewInsets.bottom + mq.padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: PausaColors.surface,

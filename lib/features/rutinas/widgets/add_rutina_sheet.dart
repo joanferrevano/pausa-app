@@ -79,7 +79,8 @@ class _AddRutinaSheetState extends State<AddRutinaSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final bottom = mq.viewInsets.bottom + mq.padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: PausaColors.surface,

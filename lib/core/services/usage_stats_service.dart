@@ -73,12 +73,15 @@ class UsageStatsService {
   static Future<Uint8List?> getAppIcon(String packageName) async {
     if (_iconCache.containsKey(packageName)) return _iconCache[packageName];
     try {
-      final result = await _channel.invokeMethod<Uint8List>(
+      final result = await _channel.invokeMethod(
         'getAppIcon',
         {'packageName': packageName},
       );
-      _iconCache[packageName] = result;
-      return result;
+      final bytes = result != null
+          ? Uint8List.fromList(List<int>.from(result as List))
+          : null;
+      _iconCache[packageName] = bytes;
+      return bytes;
     } catch (_) {
       _iconCache[packageName] = null;
       return null;

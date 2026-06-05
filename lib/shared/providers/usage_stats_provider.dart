@@ -58,11 +58,29 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
     load();
   }
 
+  // Sticky — once true, never reverts to false during the session
+  bool _permissionGranted = false;
+
+  Future<bool> _checkPermission() async {
+    final first = await UsageStatsService.hasPermission();
+    if (first) return true;
+    // Retry once after 500ms — MIUI can be slow to respond
+    await Future.delayed(const Duration(milliseconds: 500));
+    return UsageStatsService.hasPermission();
+  }
+
   Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+    // During refresh, preserve last known permission + data to avoid flashing
+    state = state.copyWith(
+      hasPermission: _permissionGranted,
+      isLoading: true,
+    );
+
     try {
-      final permitted = await UsageStatsService.hasPermission();
-      if (!permitted) {
+      final permitted = await _checkPermission();
+      if (permitted) _permissionGranted = true;
+
+      if (!_permissionGranted) {
         state = state.copyWith(hasPermission: false, isLoading: false);
         return;
       }
@@ -80,12 +98,17 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
       await StreakCalculator.saveTodayUsage(totalMinutes);
       final streak = await StreakCalculator.calculateStreak();
 
+      final apps = results[3] as List<AppUsageInfo>;
+      await Future.wait(
+        apps.map((a) => UsageStatsService.getAppIcon(a.packageName)),
+      );
+
       state = UsageStatsState(
         hasPermission: true,
         totalScreenTimeMs: totalMs,
         productiveMs: results[1] as int,
         unproductiveMs: results[2] as int,
-        topApps: results[3] as List<AppUsageInfo>,
+        topApps: apps,
         streak: streak,
         isLoading: false,
       );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/services/usage_stats_service.dart';
 import '../../../core/widgets/app_icon_widget.dart';
 
 class AppDef {
@@ -20,7 +21,7 @@ const kAppDefs = [
   AppDef('Twitch', 'tv.twitch.android.app'),
 ];
 
-class AppSelectorList extends StatelessWidget {
+class AppSelectorList extends StatefulWidget {
   const AppSelectorList({
     super.key,
     required this.selectedPackage,
@@ -29,6 +30,19 @@ class AppSelectorList extends StatelessWidget {
 
   final String? selectedPackage;
   final ValueChanged<AppDef> onSelected;
+
+  @override
+  State<AppSelectorList> createState() => _AppSelectorListState();
+}
+
+class _AppSelectorListState extends State<AppSelectorList> {
+  @override
+  void initState() {
+    super.initState();
+    for (final app in kAppDefs) {
+      UsageStatsService.getAppIcon(app.package);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +58,8 @@ class AppSelectorList extends StatelessWidget {
       itemCount: kAppDefs.length,
       itemBuilder: (_, i) => _AppCell(
         app: kAppDefs[i],
-        isSelected: selectedPackage == kAppDefs[i].package,
-        onTap: () => onSelected(kAppDefs[i]),
+        isSelected: widget.selectedPackage == kAppDefs[i].package,
+        onTap: () => widget.onSelected(kAppDefs[i]),
       ),
     );
   }

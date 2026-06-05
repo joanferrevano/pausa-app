@@ -9,12 +9,14 @@ class MiniStatCard extends StatefulWidget {
     required this.value,
     required this.unit,
     this.animationDelay = Duration.zero,
+    this.showFireWhenPositive = false,
   });
 
   final String label;
   final int value;
   final String unit;
   final Duration animationDelay;
+  final bool showFireWhenPositive;
 
   @override
   State<MiniStatCard> createState() => _MiniStatCardState();
@@ -24,7 +26,6 @@ class _MiniStatCardState extends State<MiniStatCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<int> _count;
-
   @override
   void initState() {
     super.initState();
@@ -41,6 +42,16 @@ class _MiniStatCardState extends State<MiniStatCard>
   }
 
   @override
+  void didUpdateWidget(MiniStatCard old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value) {
+      _ctrl
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
   void dispose() {
     _ctrl.dispose();
     super.dispose();
@@ -48,6 +59,7 @@ class _MiniStatCardState extends State<MiniStatCard>
 
   @override
   Widget build(BuildContext context) {
+    final showFire = widget.showFireWhenPositive && widget.value > 0;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(20),
@@ -71,27 +83,47 @@ class _MiniStatCardState extends State<MiniStatCard>
             const SizedBox(height: 10),
             AnimatedBuilder(
               animation: _count,
-              builder: (_, __) => RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '${_count.value}',
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 32,
-                        color: PausaColors.white,
-                        height: 1.0,
-                      ),
+              builder: (_, __) => Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${_count.value}',
+                          style: GoogleFonts.dmSerifDisplay(
+                            fontSize: 32,
+                            color: PausaColors.white,
+                            height: 1.0,
+                          ),
+                        ),
+                        TextSpan(
+                          text: ' ${widget.unit}',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            color: PausaColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    TextSpan(
-                      text: ' ${widget.unit}',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: PausaColors.textSecondary,
+                  ),
+                  if (showFire) ...[
+                    const SizedBox(width: 4),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, anim) => ScaleTransition(
+                        scale: anim,
+                        child: FadeTransition(opacity: anim, child: child),
+                      ),
+                      child: Text(
+                        '🔥',
+                        key: ValueKey(widget.value),
+                        style: const TextStyle(fontSize: 20),
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
           ],
