@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
 import '../models/rutina.dart';
 import '../../pausas/widgets/app_selector_list.dart';
 
@@ -166,26 +167,11 @@ class _AppBubbles extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: appNames.take(5).map((name) {
-        final app = kAppDefs.where((a) => a.name == name).firstOrNull;
-        final color = app?.color ?? PausaColors.border;
-        final snapchat = app?.package == 'com.snapchat.android';
+        final pkg =
+            kAppDefs.where((a) => a.name == name).firstOrNull?.package ?? name;
         return Padding(
           padding: const EdgeInsets.only(right: 6),
-          child: Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: Center(
-              child: Text(
-                name[0],
-                style: GoogleFonts.dmSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: snapchat ? PausaColors.black : PausaColors.white,
-                ),
-              ),
-            ),
-          ),
+          child: AppIconWidget(packageName: pkg, size: 28),
         );
       }).toList(),
     );

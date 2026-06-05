@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
 import '../../pausas/widgets/app_selector_list.dart';
 
 class RutinaAppSelector extends StatelessWidget {
@@ -27,10 +28,9 @@ class RutinaAppSelector extends StatelessWidget {
       itemCount: kAppDefs.length,
       itemBuilder: (_, i) {
         final app = kAppDefs[i];
-        final selected = selectedNames.contains(app.name);
         return _AppCell(
           app: app,
-          isSelected: selected,
+          isSelected: selectedNames.contains(app.name),
           onTap: () => onToggle(app.name),
         );
       },
@@ -62,7 +62,6 @@ class _AppCellState extends State<_AppCell> {
 
   @override
   Widget build(BuildContext context) {
-    final snapchat = widget.app.package == 'com.snapchat.android';
     return GestureDetector(
       onTapDown: _down,
       onTapUp: _up,
@@ -76,11 +75,10 @@ class _AppCellState extends State<_AppCell> {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 52,
-              height: 52,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-                color: widget.app.color,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: widget.isSelected
                       ? PausaColors.white
@@ -88,15 +86,11 @@ class _AppCellState extends State<_AppCell> {
                   width: 2,
                 ),
               ),
-              child: Center(
-                child: Text(
-                  widget.app.name[0],
-                  style: GoogleFonts.dmSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color:
-                        snapchat ? PausaColors.black : PausaColors.white,
-                  ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AppIconWidget(
+                  packageName: widget.app.package,
+                  size: 52,
                 ),
               ),
             ),

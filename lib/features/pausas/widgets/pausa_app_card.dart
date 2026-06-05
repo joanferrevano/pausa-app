@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
 import '../models/pausa_config.dart';
 
 const _activeColor = Color(0xFF4CAF50);
@@ -73,6 +74,11 @@ class _PausaAppCardState extends State<PausaAppCard> {
               ),
               child: Row(
                 children: [
+                  AppIconWidget(
+                    packageName: widget.config.packageName,
+                    size: 40,
+                  ),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

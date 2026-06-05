@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/widgets/app_icon_widget.dart';
 
 class AppDef {
-  const AppDef(this.name, this.package, this.color);
+  const AppDef(this.name, this.package);
   final String name;
   final String package;
-  final Color color;
 }
 
 const kAppDefs = [
-  AppDef('Instagram', 'com.instagram.android', Color(0xFFE1306C)),
-  AppDef('TikTok', 'com.zhiliaoapp.musically', Color(0xFF010101)),
-  AppDef('YouTube', 'com.google.android.youtube', Color(0xFFFF0000)),
-  AppDef('Twitter', 'com.twitter.android', Color(0xFF1DA1F2)),
-  AppDef('WhatsApp', 'com.whatsapp', Color(0xFF25D366)),
-  AppDef('Facebook', 'com.facebook.katana', Color(0xFF1877F2)),
-  AppDef('Snapchat', 'com.snapchat.android', Color(0xFFFFFC00)),
-  AppDef('Twitch', 'tv.twitch.android.app', Color(0xFF9146FF)),
+  AppDef('Instagram', 'com.instagram.android'),
+  AppDef('TikTok', 'com.zhiliaoapp.musically'),
+  AppDef('YouTube', 'com.google.android.youtube'),
+  AppDef('Twitter', 'com.twitter.android'),
+  AppDef('WhatsApp', 'com.whatsapp'),
+  AppDef('Facebook', 'com.facebook.katana'),
+  AppDef('Snapchat', 'com.snapchat.android'),
+  AppDef('Twitch', 'tv.twitch.android.app'),
 ];
 
 class AppSelectorList extends StatelessWidget {
@@ -75,9 +75,6 @@ class _AppCellState extends State<_AppCell> {
 
   @override
   Widget build(BuildContext context) {
-    final initial = widget.app.name[0].toUpperCase();
-    final snapchat = widget.app.package == 'com.snapchat.android';
-
     return GestureDetector(
       onTapDown: _down,
       onTapUp: _up,
@@ -91,11 +88,10 @@ class _AppCellState extends State<_AppCell> {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 52,
-              height: 52,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-                color: widget.app.color,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: widget.isSelected
                       ? PausaColors.white
@@ -103,14 +99,11 @@ class _AppCellState extends State<_AppCell> {
                   width: 2,
                 ),
               ),
-              child: Center(
-                child: Text(
-                  initial,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: snapchat ? PausaColors.black : PausaColors.white,
-                  ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AppIconWidget(
+                  packageName: widget.app.package,
+                  size: 52,
                 ),
               ),
             ),
@@ -134,4 +127,3 @@ class _AppCellState extends State<_AppCell> {
     );
   }
 }
-
