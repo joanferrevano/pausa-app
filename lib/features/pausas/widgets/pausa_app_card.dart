@@ -91,14 +91,6 @@ class _PausaAppCardState extends State<PausaAppCard> {
                             color: PausaColors.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.config.packageName,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            color: PausaColors.textMuted,
-                          ),
-                        ),
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/widgets/app_icon_widget.dart';
 import '../../../core/widgets/app_picker_sheet.dart';
+import '../../../shared/providers/installed_apps_provider.dart';
 import '../models/pausa_config.dart';
 import 'time_picker_row.dart';
 
@@ -29,15 +31,15 @@ String _minutesToMaxLabel(int m) {
   return '${m}min';
 }
 
-class AddPausaSheet extends StatefulWidget {
+class AddPausaSheet extends ConsumerStatefulWidget {
   const AddPausaSheet({super.key, this.existing});
   final PausaConfig? existing;
 
   @override
-  State<AddPausaSheet> createState() => _AddPausaSheetState();
+  ConsumerState<AddPausaSheet> createState() => _AddPausaSheetState();
 }
 
-class _AddPausaSheetState extends State<AddPausaSheet> {
+class _AddPausaSheetState extends ConsumerState<AddPausaSheet> {
   String? _selectedPackage;
   String? _selectedAppName;
   late String _waitSelected;
@@ -69,9 +71,16 @@ class _AddPausaSheetState extends State<AddPausaSheet> {
             _selectedPackage != null ? [_selectedPackage!] : [],
         onConfirm: (pkgs) {
           if (pkgs.isNotEmpty) {
+            final pkg = pkgs.first;
+            final appsState = ref.read(installedAppsProvider);
+            final name = appsState.valueOrNull
+                    ?.where((a) => a.packageName == pkg)
+                    .firstOrNull
+                    ?.appName ??
+                pkg;
             setState(() {
-              _selectedPackage = pkgs.first;
-              _selectedAppName = pkgs.first;
+              _selectedPackage = pkg;
+              _selectedAppName = name;
             });
           }
           Navigator.of(context).pop();
