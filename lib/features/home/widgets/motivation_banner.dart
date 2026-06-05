@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 
-const _headline = '7 días seguidos sin superar tu meta.';
-const _sub = 'Esta semana has recuperado 4h 12m de tu vida.';
-
 class MotivationBanner extends StatelessWidget {
-  const MotivationBanner({super.key});
+  const MotivationBanner({
+    super.key,
+    required this.streak,
+    required this.weeklyRecovered,
+  });
+
+  final int streak;
+  final String weeklyRecovered;
 
   @override
   Widget build(BuildContext context) {
+    final hasStreak = streak > 0;
+    final streakLabel =
+        '$streak ${streak == 1 ? "día" : "días"} seguidos sin superar tu meta.';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -23,9 +31,9 @@ class MotivationBanner extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.local_fire_department_rounded,
-                color: PausaColors.white,
+                color: hasStreak ? PausaColors.white : PausaColors.textMuted,
                 size: 18,
               ),
               const SizedBox(width: 8),
@@ -42,7 +50,7 @@ class MotivationBanner extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            _headline,
+            hasStreak ? streakLabel : 'Empieza hoy tu racha.',
             style: GoogleFonts.dmSerifDisplay(
               fontSize: 20,
               color: PausaColors.white,
@@ -51,7 +59,9 @@ class MotivationBanner extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            _sub,
+            hasStreak
+                ? 'Esta semana has recuperado $weeklyRecovered de tu vida.'
+                : 'Cada día que cumples tu meta cuenta.',
             style: GoogleFonts.dmSans(
               fontSize: 13,
               fontWeight: FontWeight.w400,

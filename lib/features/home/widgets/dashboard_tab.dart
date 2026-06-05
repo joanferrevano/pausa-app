@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../shared/providers/usage_stats_provider.dart';
+import '../../../shared/providers/pausas_provider.dart';
 import 'screen_time_card.dart';
 import 'mini_stat_card.dart';
 import 'app_usage_card.dart';
@@ -42,6 +43,18 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
     }
   }
 
+  static const _goalMinutes = 360;
+
+  static String _weeklyRecovered(int todayTotalMs) {
+    final todayMinutes = todayTotalMs ~/ 60000;
+    final recovered = ((_goalMinutes - todayMinutes) * 7).clamp(0, 99999);
+    final h = recovered ~/ 60;
+    final m = recovered % 60;
+    if (h > 0 && m > 0) return '${h}h ${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
+
   void _startTimer() {
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) ref.read(usageStatsProvider.notifier).load();
@@ -51,6 +64,8 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
   @override
   Widget build(BuildContext context) {
     final usage = ref.watch(usageStatsProvider);
+    final activePausas =
+        ref.watch(pausasProvider).where((p) => p.isActive).length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
@@ -73,22 +88,22 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           ),
         ),
         const SizedBox(height: 16),
-        const _FadeSlide(
+        _FadeSlide(
           delay: 160,
           child: Row(
             children: [
               MiniStatCard(
                 label: 'Pausas activas hoy',
-                value: 3,
+                value: activePausas,
                 unit: 'pausas',
-                animationDelay: Duration(milliseconds: 240),
+                animationDelay: const Duration(milliseconds: 240),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               MiniStatCard(
                 label: 'Racha actual',
-                value: 7,
-                unit: 'días',
-                animationDelay: Duration(milliseconds: 320),
+                value: usage.streak,
+                unit: usage.streak == 1 ? 'día' : 'días',
+                animationDelay: const Duration(milliseconds: 320),
               ),
             ],
           ),
@@ -99,7 +114,13 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           child: AppUsageCard(apps: usage.topApps),
         ),
         const SizedBox(height: 16),
-        const _FadeSlide(delay: 320, child: MotivationBanner()),
+        _FadeSlide(
+          delay: 320,
+          child: MotivationBanner(
+            streak: usage.streak,
+            weeklyRecovered: _weeklyRecovered(usage.totalScreenTimeMs),
+          ),
+        ),
       ],
     );
   }
@@ -107,6 +128,13 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
 
 class _Header extends StatelessWidget {
   const _Header();
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour >= 6 && hour < 14) return 'Buenos días.';
+    if (hour >= 14 && hour < 21) return 'Buenas tardes.';
+    return 'Buenas noches.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +144,7 @@ class _Header extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'Buenos días.',
+            _greeting,
             style: GoogleFonts.dmSerifDisplay(
               fontSize: 28,
               color: PausaColors.white,

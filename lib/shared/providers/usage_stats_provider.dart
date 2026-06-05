@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/app_usage_info.dart';
 import '../../core/services/usage_stats_service.dart';
+import '../../core/utils/streak_calculator.dart';
 
 class UsageStatsState {
   const UsageStatsState({
@@ -9,6 +10,7 @@ class UsageStatsState {
     this.productiveMs = 0,
     this.unproductiveMs = 0,
     this.topApps = const [],
+    this.streak = 0,
     this.isLoading = true,
   });
 
@@ -17,6 +19,7 @@ class UsageStatsState {
   final int productiveMs;
   final int unproductiveMs;
   final List<AppUsageInfo> topApps;
+  final int streak;
   final bool isLoading;
 
   double get productiveFraction =>
@@ -31,6 +34,7 @@ class UsageStatsState {
     int? productiveMs,
     int? unproductiveMs,
     List<AppUsageInfo>? topApps,
+    int? streak,
     bool? isLoading,
   }) =>
       UsageStatsState(
@@ -39,6 +43,7 @@ class UsageStatsState {
         productiveMs: productiveMs ?? this.productiveMs,
         unproductiveMs: unproductiveMs ?? this.unproductiveMs,
         topApps: topApps ?? this.topApps,
+        streak: streak ?? this.streak,
         isLoading: isLoading ?? this.isLoading,
       );
 }
@@ -61,18 +66,27 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
         state = state.copyWith(hasPermission: false, isLoading: false);
         return;
       }
+
       final results = await Future.wait([
         UsageStatsService.getTotalScreenTimeMs(),
         UsageStatsService.getProductiveTimeMs(),
         UsageStatsService.getUnproductiveTimeMs(),
         UsageStatsService.getTodayUsage(),
       ]);
+
+      final totalMs = results[0] as int;
+      final totalMinutes = totalMs ~/ 60000;
+
+      await StreakCalculator.saveTodayUsage(totalMinutes);
+      final streak = await StreakCalculator.calculateStreak();
+
       state = UsageStatsState(
         hasPermission: true,
-        totalScreenTimeMs: results[0] as int,
+        totalScreenTimeMs: totalMs,
         productiveMs: results[1] as int,
         unproductiveMs: results[2] as int,
         topApps: results[3] as List<AppUsageInfo>,
+        streak: streak,
         isLoading: false,
       );
     } catch (_) {

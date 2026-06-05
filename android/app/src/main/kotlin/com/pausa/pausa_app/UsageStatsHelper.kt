@@ -4,7 +4,10 @@ import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Process
+import java.io.ByteArrayOutputStream
 import java.util.Calendar
 
 object UsageStatsHelper {
@@ -31,33 +34,33 @@ object UsageStatsHelper {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    private fun todayRange(): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return Pair(cal.timeInMillis, System.currentTimeMillis())
+    private fun midnightMs(): Long {
+        return Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
     }
 
     private fun getAppName(context: Context, packageName: String): String {
         return try {
             val pm = context.packageManager
-            val info = pm.getApplicationInfo(packageName, 0)
-            pm.getApplicationLabel(info).toString()
+            pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
         } catch (e: PackageManager.NameNotFoundException) {
             packageName
         }
     }
 
     fun getTodayUsage(context: Context): List<Map<String, Any>> {
-        val (start, end) = todayRange()
+        val startTime = midnightMs()
+        val endTime = System.currentTimeMillis()
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, startTime, endTime)
             ?: return emptyList()
 
         return stats
-            .filter { it.totalTimeInForeground >= 60_000L }
+            .filter { it.totalTimeInForeground > 60_000L && it.lastTimeUsed >= startTime }
             .sortedByDescending { it.totalTimeInForeground }
             .take(10)
             .map { stat ->
@@ -71,32 +74,61 @@ object UsageStatsHelper {
     }
 
     fun getTotalScreenTimeMs(context: Context): Long {
-        val (start, end) = todayRange()
+        val startTime = midnightMs()
+        val endTime = System.currentTimeMillis()
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, startTime, endTime)
             ?: return 0L
         return stats
-            .filter { it.totalTimeInForeground >= 60_000L }
+            .filter { it.totalTimeInForeground > 60_000L && it.lastTimeUsed >= startTime }
             .sumOf { it.totalTimeInForeground }
     }
 
     fun getUnproductiveTimeMs(context: Context): Long {
-        val (start, end) = todayRange()
+        val startTime = midnightMs()
+        val endTime = System.currentTimeMillis()
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, startTime, endTime)
             ?: return 0L
         return stats
-            .filter { it.totalTimeInForeground >= 60_000L && unproductivePackages.contains(it.packageName) }
+            .filter {
+                it.totalTimeInForeground > 60_000L &&
+                it.lastTimeUsed >= startTime &&
+                unproductivePackages.contains(it.packageName)
+            }
             .sumOf { it.totalTimeInForeground }
     }
 
     fun getProductiveTimeMs(context: Context): Long {
-        val (start, end) = todayRange()
+        val startTime = midnightMs()
+        val endTime = System.currentTimeMillis()
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, startTime, endTime)
             ?: return 0L
         return stats
-            .filter { it.totalTimeInForeground >= 60_000L && !unproductivePackages.contains(it.packageName) }
+            .filter {
+                it.totalTimeInForeground > 60_000L &&
+                it.lastTimeUsed >= startTime &&
+                !unproductivePackages.contains(it.packageName)
+            }
             .sumOf { it.totalTimeInForeground }
+    }
+
+    fun getAppIcon(context: Context, packageName: String): ByteArray? {
+        return try {
+            val pm = context.packageManager
+            val drawable = pm.getApplicationIcon(packageName)
+            val w = drawable.intrinsicWidth.coerceAtLeast(1)
+            val h = drawable.intrinsicHeight.coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            stream.toByteArray()
+        } catch (e: Exception) {
+            null
+        }
     }
 }

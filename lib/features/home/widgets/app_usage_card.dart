@@ -14,8 +14,7 @@ class AppUsageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final display = apps.take(3).toList();
-    final maxMs =
-        display.isEmpty ? 1 : display.first.totalTimeMs;
+    final maxMs = display.isEmpty ? 1 : display.first.totalTimeMs;
 
     return Container(
       width: double.infinity,
@@ -49,6 +48,7 @@ class AppUsageCard extends StatelessWidget {
           else
             for (var i = 0; i < display.length; i++) ...[
               AppUsageRow(
+                packageName: display[i].packageName,
                 appName: display[i].appName,
                 timeLabel: display[i].formattedTime,
                 fraction: display[i].totalTimeMs / maxMs,

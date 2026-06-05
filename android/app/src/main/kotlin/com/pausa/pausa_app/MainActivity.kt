@@ -37,6 +37,11 @@ class MainActivity : FlutterActivity() {
                             result.success(null)
                         }
 
+                        "getAppIcon" -> {
+                            val packageName = call.argument<String>("packageName") ?: ""
+                            result.success(UsageStatsHelper.getAppIcon(this, packageName))
+                        }
+
                         else -> result.notImplemented()
                     }
                 } catch (e: Exception) {

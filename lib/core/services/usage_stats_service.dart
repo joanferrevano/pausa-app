@@ -5,6 +5,7 @@ class UsageStatsService {
   UsageStatsService._();
 
   static const _channel = MethodChannel('com.pausa.pausa_app/usage_stats');
+  static final Map<String, Uint8List?> _iconCache = {};
 
   static Future<bool> hasPermission() async {
     try {
@@ -63,6 +64,24 @@ class UsageStatsService {
       return (result as num?)?.toInt() ?? 0;
     } on PlatformException {
       return 0;
+    }
+  }
+
+  static Uint8List? getCachedIcon(String packageName) =>
+      _iconCache[packageName];
+
+  static Future<Uint8List?> getAppIcon(String packageName) async {
+    if (_iconCache.containsKey(packageName)) return _iconCache[packageName];
+    try {
+      final result = await _channel.invokeMethod<Uint8List>(
+        'getAppIcon',
+        {'packageName': packageName},
+      );
+      _iconCache[packageName] = result;
+      return result;
+    } catch (_) {
+      _iconCache[packageName] = null;
+      return null;
     }
   }
 
