@@ -11,10 +11,9 @@ import '../features/auth/screens/register_screen.dart';
 import '../features/home/screens/home_screen.dart';
 
 class PausaRouter {
-  static final GoRouter router = GoRouter(
+  static GoRouter router({required bool onboardingDone}) => GoRouter(
     initialLocation: '/splash',
     routes: [
-      // Splash
       GoRoute(
         path: '/splash',
         name: 'splash',
