@@ -46,26 +46,53 @@ object UsageStatsHelper {
 
         val foregroundTimes = mutableMapOf<String, Long>()
         val lastForeground = mutableMapOf<String, Long>()
+        var screenOff = false
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             when (event.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND ->
-                    lastForeground[event.packageName] = event.timeStamp
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE -> {
+                    // Screen turned off — close all foreground sessions
+                    screenOff = true
+                    val ts = event.timeStamp
+                    for ((pkg, start) in lastForeground.toMap()) {
+                        val duration = ts - start
+                        if (duration > 0) {
+                            foregroundTimes[pkg] = (foregroundTimes[pkg] ?: 0L) + duration
+                        }
+                        lastForeground.remove(pkg)
+                    }
+                }
+                UsageEvents.Event.SCREEN_INTERACTIVE -> {
+                    screenOff = false
+                }
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                    if (!screenOff) {
+                        lastForeground[event.packageName] = event.timeStamp
+                    }
+                }
                 UsageEvents.Event.MOVE_TO_BACKGROUND -> {
                     val start = lastForeground.remove(event.packageName)
-                    if (start != null) {
+                    if (start != null && !screenOff) {
                         val duration = event.timeStamp - start
-                        foregroundTimes[event.packageName] =
-                            (foregroundTimes[event.packageName] ?: 0L) + duration
+                        if (duration > 0) {
+                            foregroundTimes[event.packageName] =
+                                (foregroundTimes[event.packageName] ?: 0L) + duration
+                        }
                     }
                 }
             }
         }
 
-        val now = System.currentTimeMillis()
-        for ((pkg, start) in lastForeground) {
-            foregroundTimes[pkg] = (foregroundTimes[pkg] ?: 0L) + (now - start)
+        // Close any still-foreground apps (currently being used)
+        if (!screenOff) {
+            val now = System.currentTimeMillis()
+            for ((pkg, start) in lastForeground) {
+                val duration = now - start
+                if (duration > 0) {
+                    foregroundTimes[pkg] = (foregroundTimes[pkg] ?: 0L) + duration
+                }
+            }
         }
 
         return foregroundTimes

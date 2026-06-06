@@ -43,18 +43,6 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
     }
   }
 
-  static const _goalMinutes = 360;
-
-  static String _weeklyRecovered(int todayTotalMs) {
-    final todayMinutes = todayTotalMs ~/ 60000;
-    final recovered = ((_goalMinutes - todayMinutes) * 7).clamp(0, 99999);
-    final h = recovered ~/ 60;
-    final m = recovered % 60;
-    if (h > 0 && m > 0) return '${h}h ${m}m';
-    if (h > 0) return '${h}h';
-    return '${m}m';
-  }
-
   void _startTimer() {
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) ref.read(usageStatsProvider.notifier).load();
@@ -119,7 +107,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           delay: 320,
           child: MotivationBanner(
             streak: usage.streak,
-            weeklyRecovered: _weeklyRecovered(usage.totalScreenTimeMs),
+            weeklyRecovered: usage.weeklyRecoveredFormatted,
           ),
         ),
       ],

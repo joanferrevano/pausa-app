@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/widgets/app_icon_widget.dart';
+import '../../../shared/providers/pausas_provider.dart';
 import '../models/pausa_config.dart';
 
 const _activeColor = Color(0xFF4CAF50);
+const _dlgTitleEliminar = 'Eliminar pausa';
+const _dlgCancel = 'Cancelar';
+const _dlgConfirm = 'Eliminar';
 
 String _waitLabel(int s) => s >= 60 ? '${s ~/ 60}min' : '${s}s';
 String _maxLabel(int m) => m == 0 ? '∞' : '${m}min';
 
-class PausaAppCard extends StatefulWidget {
+class PausaAppCard extends ConsumerStatefulWidget {
   const PausaAppCard({
     super.key,
     required this.config,
@@ -24,16 +29,61 @@ class PausaAppCard extends StatefulWidget {
   final VoidCallback onDelete;
 
   @override
-  State<PausaAppCard> createState() => _PausaAppCardState();
+  ConsumerState<PausaAppCard> createState() => _PausaAppCardState();
 }
 
-class _PausaAppCardState extends State<PausaAppCard> {
+class _PausaAppCardState extends ConsumerState<PausaAppCard> {
   double _scale = 1.0;
   double _opacity = 1.0;
 
   void _down(_) => setState(() { _scale = 0.98; _opacity = 0.85; });
   void _up(_) => setState(() { _scale = 1.0; _opacity = 1.0; });
   void _cancel() => setState(() { _scale = 1.0; _opacity = 1.0; });
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PausaColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          _dlgTitleEliminar,
+          style: GoogleFonts.dmSans(
+            fontWeight: FontWeight.w600,
+            color: PausaColors.textPrimary,
+          ),
+        ),
+        content: Text(
+          '¿Seguro que quieres eliminar la pausa de ${widget.config.appName}?',
+          style: GoogleFonts.dmSans(color: PausaColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              _dlgCancel,
+              style: GoogleFonts.dmSans(color: PausaColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              _dlgConfirm,
+              style: GoogleFonts.dmSans(
+                color: PausaColors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref
+          .read(pausasProvider.notifier)
+          .deletePausaByPackage(widget.config.packageName);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,13 +133,32 @@ class _PausaAppCardState extends State<PausaAppCard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.config.appName,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: PausaColors.textPrimary,
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                widget.config.appName,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: PausaColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _confirmDelete,
+                              behavior: HitTestBehavior.opaque,
+                              child: const Padding(
+                                padding: EdgeInsets.only(left: 8),
+                                child: Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 18,
+                                  color: PausaColors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 12),
                         Wrap(

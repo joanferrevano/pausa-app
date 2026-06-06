@@ -11,6 +11,7 @@ class UsageStatsState {
     this.unproductiveMs = 0,
     this.topApps = const [],
     this.streak = 0,
+    this.weeklyRecoveredFormatted = '0m',
     this.isLoading = true,
   });
 
@@ -20,6 +21,7 @@ class UsageStatsState {
   final int unproductiveMs;
   final List<AppUsageInfo> topApps;
   final int streak;
+  final String weeklyRecoveredFormatted;
   final bool isLoading;
 
   double get productiveFraction =>
@@ -35,6 +37,7 @@ class UsageStatsState {
     int? unproductiveMs,
     List<AppUsageInfo>? topApps,
     int? streak,
+    String? weeklyRecoveredFormatted,
     bool? isLoading,
   }) =>
       UsageStatsState(
@@ -44,6 +47,8 @@ class UsageStatsState {
         unproductiveMs: unproductiveMs ?? this.unproductiveMs,
         topApps: topApps ?? this.topApps,
         streak: streak ?? this.streak,
+        weeklyRecoveredFormatted:
+            weeklyRecoveredFormatted ?? this.weeklyRecoveredFormatted,
         isLoading: isLoading ?? this.isLoading,
       );
 }
@@ -58,19 +63,16 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
     load();
   }
 
-  // Sticky — once true, never reverts to false during the session
   bool _permissionGranted = false;
 
   Future<bool> _checkPermission() async {
     final first = await UsageStatsService.hasPermission();
     if (first) return true;
-    // Retry once after 500ms — MIUI can be slow to respond
     await Future.delayed(const Duration(milliseconds: 500));
     return UsageStatsService.hasPermission();
   }
 
   Future<void> load() async {
-    // During refresh, preserve last known permission + data to avoid flashing
     state = state.copyWith(
       hasPermission: _permissionGranted,
       isLoading: true,
@@ -96,7 +98,10 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
       final totalMinutes = totalMs ~/ 60000;
 
       await StreakCalculator.saveTodayUsage(totalMinutes);
+
       final streak = await StreakCalculator.calculateStreak();
+      final weeklyRecoveredFormatted =
+          await StreakCalculator.computeWeeklyRecoveredFormatted();
 
       final apps = results[3] as List<AppUsageInfo>;
       await Future.wait(
@@ -111,6 +116,7 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
         unproductiveMs: results[2] as int,
         topApps: apps,
         streak: streak,
+        weeklyRecoveredFormatted: weeklyRecoveredFormatted,
         isLoading: false,
       );
     } catch (_) {

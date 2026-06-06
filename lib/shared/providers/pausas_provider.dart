@@ -35,6 +35,17 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
     state = box.values.toList();
   }
 
+  Future<void> deletePausaByPackage(String packageName) async {
+    final box = HiveService.pausasBox;
+    final updated =
+        box.values.where((p) => p.packageName != packageName).toList();
+    await box.clear();
+    for (final p in updated) {
+      await box.add(p);
+    }
+    state = box.values.toList();
+  }
+
   Future<void> togglePausa(int index, bool value) async {
     final box = HiveService.pausasBox;
     final key = box.keyAt(index);

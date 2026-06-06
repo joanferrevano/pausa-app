@@ -139,7 +139,10 @@ class _AddBloqueoSheetState extends State<AddBloqueoSheet> {
               onSelected: (v) => setState(() => _duration = v),
             ),
             const SizedBox(height: 32),
-            _SaveButton(onTap: _save),
+            _SaveButton(
+              onTap: _save,
+              label: widget.existing != null ? 'Guardar cambios' : 'Crear jaula',
+            ),
           ],
         ),
       ),
@@ -283,8 +286,9 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _SaveButton extends StatefulWidget {
-  const _SaveButton({required this.onTap});
+  const _SaveButton({required this.onTap, required this.label});
   final VoidCallback onTap;
+  final String label;
 
   @override
   State<_SaveButton> createState() => _SaveButtonState();
@@ -320,7 +324,7 @@ class _SaveButtonState extends State<_SaveButton> {
             ),
             child: Center(
               child: Text(
-                'Crear jaula',
+                widget.label,
                 style: GoogleFonts.dmSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,

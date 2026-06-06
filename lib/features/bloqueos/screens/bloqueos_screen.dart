@@ -24,7 +24,12 @@ class BloqueosScreen extends ConsumerWidget {
       builder: (_) => AddBloqueoSheet(existing: existing),
     );
     if (result == null) return;
-    await ref.read(bloqueosProvider.notifier).addBloqueo(result);
+    final notifier = ref.read(bloqueosProvider.notifier);
+    if (existing != null) {
+      await notifier.updateBloqueo(result);
+    } else {
+      await notifier.addBloqueo(result);
+    }
   }
 
   @override

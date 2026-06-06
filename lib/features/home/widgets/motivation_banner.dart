@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 
+const _labelRachaActiva = 'Racha activa';
+const _titleStart = 'Empieza hoy tu racha.';
+const _subtitleStart = 'Cada día que cumplas tu meta, lo verás aquí.';
+const _subtitleRecovered = 'Esta semana has recuperado';
+const _subtitleRecoveredSuffix = 'de tu vida.';
+
 class MotivationBanner extends StatelessWidget {
   const MotivationBanner({
     super.key,
@@ -12,12 +18,19 @@ class MotivationBanner extends StatelessWidget {
   final int streak;
   final String weeklyRecovered;
 
+  String get _title {
+    if (streak == 0) return _titleStart;
+    if (streak == 1) return '1 día seguido. 🔥';
+    return '$streak días seguidos sin superar tu meta. 🔥';
+  }
+
+  String get _subtitle {
+    if (streak == 0) return _subtitleStart;
+    return '$_subtitleRecovered $weeklyRecovered $_subtitleRecoveredSuffix';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasStreak = streak > 0;
-    final streakLabel =
-        '$streak ${streak == 1 ? "día" : "días"} seguidos sin superar tu meta.';
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -33,12 +46,12 @@ class MotivationBanner extends StatelessWidget {
             children: [
               Icon(
                 Icons.local_fire_department_rounded,
-                color: hasStreak ? PausaColors.white : PausaColors.textMuted,
+                color: streak > 0 ? PausaColors.white : PausaColors.textMuted,
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
-                'Racha activa',
+                _labelRachaActiva,
                 style: GoogleFonts.dmSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
@@ -50,7 +63,7 @@ class MotivationBanner extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            hasStreak ? streakLabel : 'Empieza hoy tu racha.',
+            _title,
             style: GoogleFonts.dmSerifDisplay(
               fontSize: 20,
               color: PausaColors.white,
@@ -59,9 +72,7 @@ class MotivationBanner extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            hasStreak
-                ? 'Esta semana has recuperado $weeklyRecovered de tu vida.'
-                : 'Cada día que cumples tu meta cuenta.',
+            _subtitle,
             style: GoogleFonts.dmSans(
               fontSize: 13,
               fontWeight: FontWeight.w400,

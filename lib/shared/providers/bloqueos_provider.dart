@@ -26,6 +26,11 @@ class BloqueosNotifier extends StateNotifier<List<Bloqueo>> {
     state = HiveService.bloqueosBox.values.toList();
   }
 
+  Future<void> updateBloqueo(Bloqueo bloqueo) async {
+    await HiveService.bloqueosBox.put(bloqueo.id, bloqueo);
+    state = HiveService.bloqueosBox.values.toList();
+  }
+
   Future<void> activateBloqueo(String id) async {
     final box = HiveService.bloqueosBox;
     final now = DateTime.now();
