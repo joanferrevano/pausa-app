@@ -93,15 +93,37 @@ class _AppPickerSheetState extends ConsumerState<AppPickerSheet> {
           Expanded(
             child: appsAsync.when(
               loading: () => const Center(
-                child: CircularProgressIndicator(
-                  color: PausaColors.white,
-                  strokeWidth: 1.5,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: PausaColors.textMuted,
+                    strokeWidth: 1.5,
+                  ),
                 ),
               ),
               error: (_, __) => Center(
-                child: Text(
-                  'Error cargando apps',
-                  style: GoogleFonts.dmSans(color: PausaColors.textMuted),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Error cargando apps. Toca para reintentar',
+                      style:
+                          GoogleFonts.dmSans(color: PausaColors.textMuted),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => ref.refresh(installedAppsProvider),
+                      child: Text(
+                        'Reintentar',
+                        style: GoogleFonts.dmSans(
+                          color: PausaColors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               data: (apps) {
@@ -112,6 +134,15 @@ class _AppPickerSheetState extends ConsumerState<AppPickerSheet> {
                             a.appName.toLowerCase().contains(_query) ||
                             a.packageName.toLowerCase().contains(_query))
                         .toList();
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No se encontraron apps',
+                      style:
+                          GoogleFonts.dmSans(color: PausaColors.textMuted),
+                    ),
+                  );
+                }
                 return ListView.builder(
                   itemCount: filtered.length,
                   itemBuilder: (_, i) => _AppRow(

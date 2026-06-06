@@ -14,18 +14,30 @@ import java.util.Calendar
 
 object UsageStatsHelper {
 
-    private val unproductivePackages = setOf(
-        "com.instagram.android",
-        "com.zhiliaoapp.musically",
-        "com.google.android.youtube",
-        "com.twitter.android",
-        "com.facebook.katana",
-        "com.snapchat.android",
-        "com.netflix.mediaclient",
-        "tv.twitch.android.app",
-        "com.reddit.frontpage",
-        "com.pinterest",
-    )
+    private fun isUnproductive(context: Context, packageName: String): Boolean {
+        return try {
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                when (appInfo.category) {
+                    android.content.pm.ApplicationInfo.CATEGORY_SOCIAL -> true
+                    android.content.pm.ApplicationInfo.CATEGORY_VIDEO -> true
+                    android.content.pm.ApplicationInfo.CATEGORY_GAME -> true
+                    android.content.pm.ApplicationInfo.CATEGORY_IMAGE -> true
+                    else -> false
+                }
+            } else {
+                val patterns = listOf(
+                    "instagram", "tiktok", "musically", "facebook", "snapchat",
+                    "twitter", "netflix", "twitch", "youtube", "reddit", "pinterest",
+                    "game", "clash", "candy", "subway"
+                )
+                patterns.any { packageName.lowercase().contains(it) }
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     private fun getMidnight(): Long {
         return Calendar.getInstance().apply {
@@ -115,7 +127,7 @@ object UsageStatsHelper {
                     "packageName" to pkg,
                     "appName" to appName,
                     "totalTimeMs" to ms,
-                    "category" to 0,
+                    "isUnproductive" to isUnproductive(context, pkg),
                 )
             }
     }
@@ -124,10 +136,10 @@ object UsageStatsHelper {
         getTodayUsageMap(context).values.sum()
 
     fun getProductiveTimeMs(context: Context): Long =
-        getTodayUsageMap(context).filter { it.key !in unproductivePackages }.values.sum()
+        getTodayUsageMap(context).filter { !isUnproductive(context, it.key) }.values.sum()
 
     fun getUnproductiveTimeMs(context: Context): Long =
-        getTodayUsageMap(context).filter { it.key in unproductivePackages }.values.sum()
+        getTodayUsageMap(context).filter { isUnproductive(context, it.key) }.values.sum()
 
     fun hasPermission(context: Context): Boolean {
         return try {

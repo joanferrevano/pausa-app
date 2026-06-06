@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
+import '../features/splash/screens/splash_screen.dart';
 import '../features/onboarding/screens/hook_screen.dart';
 import '../features/onboarding/screens/dopamine_screen.dart';
 import '../features/onboarding/screens/form_screen.dart';
@@ -11,8 +12,15 @@ import '../features/home/screens/home_screen.dart';
 
 class PausaRouter {
   static final GoRouter router = GoRouter(
-    initialLocation: '/onboarding/hook',
+    initialLocation: '/splash',
     routes: [
+      // Splash
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+
       // Onboarding
       GoRoute(
         path: '/onboarding/hook',

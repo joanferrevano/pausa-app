@@ -89,21 +89,24 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
 
       final results = await Future.wait([
         UsageStatsService.getTotalScreenTimeMs(),
-        UsageStatsService.getProductiveTimeMs(),
-        UsageStatsService.getUnproductiveTimeMs(),
         UsageStatsService.getTodayUsage(),
       ]);
 
       final totalMs = results[0] as int;
-      final totalMinutes = totalMs ~/ 60000;
+      final apps = results[1] as List<AppUsageInfo>;
 
+      final unproductiveMs = apps
+          .where((a) => a.isUnproductive)
+          .fold(0, (sum, a) => sum + a.totalTimeMs);
+      final productiveMs = totalMs - unproductiveMs;
+
+      final totalMinutes = totalMs ~/ 60000;
       await StreakCalculator.saveTodayUsage(totalMinutes);
 
       final streak = await StreakCalculator.calculateStreak();
       final weeklyRecoveredFormatted =
           await StreakCalculator.computeWeeklyRecoveredFormatted();
 
-      final apps = results[3] as List<AppUsageInfo>;
       await Future.wait(
         apps.map((a) => UsageStatsService.getAppIcon(a.packageName)),
         eagerError: false,
@@ -112,8 +115,8 @@ class UsageStatsNotifier extends StateNotifier<UsageStatsState> {
       state = UsageStatsState(
         hasPermission: true,
         totalScreenTimeMs: totalMs,
-        productiveMs: results[1] as int,
-        unproductiveMs: results[2] as int,
+        productiveMs: productiveMs,
+        unproductiveMs: unproductiveMs,
         topApps: apps,
         streak: streak,
         weeklyRecoveredFormatted: weeklyRecoveredFormatted,

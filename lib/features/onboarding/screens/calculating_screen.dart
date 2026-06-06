@@ -1,18 +1,20 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
+import '../../../shared/providers/usage_stats_provider.dart';
 
-class CalculatingScreen extends StatefulWidget {
+class CalculatingScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? extra;
   const CalculatingScreen({super.key, this.extra});
 
   @override
-  State<CalculatingScreen> createState() => _CalculatingScreenState();
+  ConsumerState<CalculatingScreen> createState() => _CalculatingScreenState();
 }
 
-class _CalculatingScreenState extends State<CalculatingScreen>
+class _CalculatingScreenState extends ConsumerState<CalculatingScreen>
     with TickerProviderStateMixin {
   late AnimationController _spinController;
   late AnimationController _sweepController;
@@ -31,13 +33,11 @@ class _CalculatingScreenState extends State<CalculatingScreen>
   void initState() {
     super.initState();
 
-    // Continuous rotation — slow, premium feel
     _spinController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..repeat();
 
-    // Sweep breathes in and out (arc grows 40° → 280° → 40°)
     _sweepController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
@@ -53,6 +53,10 @@ class _CalculatingScreenState extends State<CalculatingScreen>
 
     Future.delayed(const Duration(milliseconds: 750), _nextMessage);
     Future.delayed(const Duration(milliseconds: 3500), _goToResult);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(usageStatsProvider.notifier).load();
+    });
   }
 
   void _nextMessage() {
@@ -102,7 +106,6 @@ class _CalculatingScreenState extends State<CalculatingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Animated circle spinner
               SizedBox(
                 width: 96,
                 height: 96,
@@ -133,7 +136,6 @@ class _CalculatingScreenState extends State<CalculatingScreen>
 
               const SizedBox(height: 16),
 
-              // Cycling analysis message
               FadeTransition(
                 opacity: _fadeText,
                 child: Text(
@@ -165,19 +167,16 @@ class _SpinnerPainter extends CustomPainter {
     final radius = size.width / 2 - 4;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Dim track ring
     final trackPaint = Paint()
       ..color = PausaColors.border
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawCircle(center, radius, trackPaint);
 
-    // Breathing sweep arc: 40° at min, 260° at max
     const minSweep = 40 * pi / 180;
     const maxSweep = 260 * pi / 180;
     final sweep = minSweep + (maxSweep - minSweep) * sweepFactor;
 
-    // Start angle rotates continuously
     final startAngle = rotation * 2 * pi - pi / 2;
 
     final arcPaint = Paint()

@@ -20,7 +20,6 @@ class HookScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 64),
 
-              // Logo wordmark — PAUSA uppercase centered
               FadeSlideIn(
                 delay: const Duration(milliseconds: 0),
                 duration: const Duration(milliseconds: 500),
@@ -38,7 +37,6 @@ class HookScreen extends StatelessWidget {
 
               const SizedBox(height: 56),
 
-              // Headline — centered, key alarming phrase in red
               FadeSlideIn(
                 delay: const Duration(milliseconds: 200),
                 duration: const Duration(milliseconds: 600),
@@ -67,7 +65,6 @@ class HookScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // Alarming stat — centered
               FadeSlideIn(
                 delay: const Duration(milliseconds: 480),
                 duration: const Duration(milliseconds: 600),
@@ -109,7 +106,6 @@ class HookScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // CTA — no secondary text
               FadeSlideIn(
                 delay: const Duration(milliseconds: 760),
                 duration: const Duration(milliseconds: 500),

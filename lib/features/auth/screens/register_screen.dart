@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/theme.dart';
 import '../../../app/widgets/fade_slide_in.dart';
 import '../../../app/widgets/pressable_feedback.dart';
+
+Future<void> _completeOnboarding(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('onboarding_done', true);
+  if (context.mounted) context.goNamed('home');
+}
 
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
@@ -75,7 +82,7 @@ class RegisterScreen extends StatelessWidget {
                 delay: const Duration(milliseconds: 320),
                 duration: const Duration(milliseconds: 400),
                 child: _AuthButton(
-                  onTap: () => context.goNamed('home'),
+                  onTap: () => _completeOnboarding(context),
                   filled: true,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -101,7 +108,7 @@ class RegisterScreen extends StatelessWidget {
                 delay: const Duration(milliseconds: 400),
                 duration: const Duration(milliseconds: 400),
                 child: _AuthButton(
-                  onTap: () => context.goNamed('home'),
+                  onTap: () => _completeOnboarding(context),
                   filled: false,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -131,7 +138,7 @@ class RegisterScreen extends StatelessWidget {
                 delay: const Duration(milliseconds: 480),
                 duration: const Duration(milliseconds: 400),
                 child: _AuthButton(
-                  onTap: () => context.goNamed('home'),
+                  onTap: () => _completeOnboarding(context),
                   filled: false,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
