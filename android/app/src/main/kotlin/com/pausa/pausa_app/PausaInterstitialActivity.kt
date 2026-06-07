@@ -2,9 +2,7 @@ package com.pausa.pausa_app
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -34,36 +32,9 @@ class PausaInterstitialActivity : Activity() {
             setPadding(80, 80, 80, 80)
         }
 
-        // PAUSA logo drawn with Canvas (two rounded bars)
-        val pausaLogoView = object : android.view.View(this) {
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val paint = Paint().apply {
-                    color = Color.parseColor("#F0F0F0")
-                    style = Paint.Style.FILL
-                    isAntiAlias = true
-                }
-                val w = width.toFloat()
-                val h = height.toFloat()
-                val barW = w * 0.28f
-                val barH = h * 0.65f
-                val barTop = h * 0.175f
-                val radius = barW * 0.4f
-                // Left bar
-                canvas.drawRoundRect(
-                    w * 0.12f, barTop,
-                    w * 0.12f + barW, barTop + barH,
-                    radius, radius, paint
-                )
-                // Right bar
-                canvas.drawRoundRect(
-                    w * 0.60f, barTop,
-                    w * 0.60f + barW, barTop + barH,
-                    radius, radius, paint
-                )
-            }
-        }.apply {
-            setBackgroundColor(Color.parseColor("#161616"))
+        val logoView = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.splash_logo)
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
             layoutParams = LinearLayout.LayoutParams(120, 120).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 bottomMargin = 40
@@ -71,7 +42,7 @@ class PausaInterstitialActivity : Activity() {
         }
 
         val titleView = TextView(this).apply {
-            text = if (timeUp) "Tiempo agotado en $appName" else "Vas a abrir $appName"
+            text = if (timeUp) "Tiempo agotado" else "Vas a abrir $appName"
             textSize = 22f
             setTextColor(Color.parseColor("#F0F0F0"))
             gravity = Gravity.CENTER
@@ -86,7 +57,7 @@ class PausaInterstitialActivity : Activity() {
         }
 
         val subtitleView = TextView(this).apply {
-            text = if (timeUp) "Has alcanzado tu límite de tiempo."
+            text = if (timeUp) "Has llegado al límite en $appName."
                    else "Tómate un momento antes de entrar."
             textSize = 15f
             setTextColor(Color.parseColor("#888888"))
@@ -100,13 +71,13 @@ class PausaInterstitialActivity : Activity() {
             }
         }
 
-        root.addView(pausaLogoView)
+        root.addView(logoView)
         root.addView(titleView)
         root.addView(subtitleView)
 
         if (timeUp) {
-            val homeButton = Button(this).apply {
-                text = "Volver al inicio"
+            val closeButton = Button(this).apply {
+                text = "Cerrar"
                 textSize = 14f
                 setTextColor(Color.parseColor("#F0F0F0"))
                 setBackgroundColor(Color.parseColor("#1A1A1A"))
@@ -115,8 +86,8 @@ class PausaInterstitialActivity : Activity() {
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
             }
-            root.addView(homeButton)
-            homeButton.setOnClickListener { goHome() }
+            root.addView(closeButton)
+            closeButton.setOnClickListener { goHome() }
             setContentView(root)
         } else {
             val countdownView = TextView(this).apply {
@@ -176,10 +147,10 @@ class PausaInterstitialActivity : Activity() {
                 }
 
                 override fun onFinish() {
-                    // User waited — allow entry, remove from backgrounded set
-                    // so AccessibilityService won't re-intercept immediately
-                    val service = getAccessibilityService()
-                    service?.allowPackage(blockedPackageName)
+                    // 3-second whitelist — just enough for the app to open
+                    PausaAccessibilityService.allowApp(blockedPackageName)
+                    // Register active timer so service won't re-intercept while inside
+                    PausaAccessibilityService.addActiveTimer(blockedPackageName)
 
                     if (maxMinutes > 0) {
                         val timerIntent = Intent(
@@ -198,15 +169,9 @@ class PausaInterstitialActivity : Activity() {
         }
     }
 
-    private fun getAccessibilityService(): PausaAccessibilityService? {
-        // Best-effort: service instance is not directly accessible across processes
-        // but since they run in the same process we can use a singleton holder
-        return PausaAccessibilityService.instance
-    }
-
     private fun goHome() {
         countDownTimer?.cancel()
-        // Keep blockedPackageName in backgroundedPausedApps — force re-intercept next open
+        // Do NOT whitelist — force re-intercept next time user opens the app
         val homeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK

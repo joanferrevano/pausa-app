@@ -61,6 +61,9 @@ class PausaTimerService : Service() {
     }
 
     private fun expelUser() {
+        PausaAccessibilityService.removeActiveTimer(packageName)
+        PausaAccessibilityService.allowedApps.remove(packageName)
+
         val intent = Intent(this, PausaInterstitialActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -115,5 +118,6 @@ class PausaTimerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         timer?.cancel()
+        PausaAccessibilityService.removeActiveTimer(packageName)
     }
 }

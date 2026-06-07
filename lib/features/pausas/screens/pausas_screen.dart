@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/services/accessibility_service.dart';
 import '../../../shared/providers/pausas_provider.dart';
 import '../../../shared/providers/accessibility_provider.dart';
 import '../models/pausa_config.dart';
@@ -45,33 +46,90 @@ class PausasScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _Header(onAdd: () => _openSheet(context, ref)),
-            if (!accessState.isLoading && !accessState.isEnabled)
-              _AccessibilityBanner(
-                onTap: () async {
-                  await ref.read(accessibilityProvider.notifier).openSettings();
-                  Future.delayed(const Duration(seconds: 1), () {
-                    ref.read(accessibilityProvider.notifier).refresh();
-                  });
-                },
-              ),
             Expanded(
-              child: pausas.isEmpty
-                  ? const EmptyPausasState()
-                  : _PausasList(
-                      pausas: pausas,
-                      onToggle: (i, v) =>
-                          ref.read(pausasProvider.notifier).togglePausa(i, v),
-                      onEdit: (i) =>
-                          _openSheet(context, ref, existing: pausas[i], editIndex: i),
-                      onDelete: (i) =>
-                          ref.read(pausasProvider.notifier).deletePausa(i),
-                    ),
+              child: RefreshIndicator(
+                color: PausaColors.white,
+                backgroundColor: PausaColors.surface,
+                onRefresh: () async {
+                  ref.invalidate(accessibilityProvider);
+                  final currentPausas = ref.read(pausasProvider);
+                  final pausasList = currentPausas
+                      .map((p) => p.toMap())
+                      .toList();
+                  await AccessibilityService.syncPausas(pausasList);
+                },
+                child: pausas.isEmpty
+                    ? _emptyWithBanner(context, ref, accessState)
+                    : _listWithBanner(context, ref, pausas, accessState),
+              ),
             ),
           ],
         ),
       ),
       floatingActionButton: _AddFab(onTap: () => _openSheet(context, ref)),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _banner(BuildContext context, WidgetRef ref) {
+    return _AccessibilityBanner(
+      onTap: () async {
+        await ref.read(accessibilityProvider.notifier).openSettings();
+        Future.delayed(const Duration(seconds: 1), () {
+          ref.read(accessibilityProvider.notifier).refresh();
+        });
+      },
+    );
+  }
+
+  Widget _emptyWithBanner(
+    BuildContext context,
+    WidgetRef ref,
+    AccessibilityState accessState,
+  ) {
+    return CustomScrollView(
+      slivers: [
+        if (!accessState.isLoading && !accessState.isEnabled)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: _banner(context, ref),
+            ),
+          ),
+        const SliverFillRemaining(child: EmptyPausasState()),
+      ],
+    );
+  }
+
+  Widget _listWithBanner(
+    BuildContext context,
+    WidgetRef ref,
+    List<PausaConfig> pausas,
+    AccessibilityState accessState,
+  ) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
+      itemCount: pausas.length +
+          (!accessState.isLoading && !accessState.isEnabled ? 1 : 0),
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, i) {
+        if (!accessState.isLoading && !accessState.isEnabled && i == 0) {
+          return _banner(context, ref);
+        }
+        final idx = (!accessState.isLoading && !accessState.isEnabled) ? i - 1 : i;
+        return _FadeSlide(
+          delay: Duration(milliseconds: idx * 80),
+          child: PausaAppCard(
+            config: pausas[idx],
+            onToggle: (v) =>
+                ref.read(pausasProvider.notifier).togglePausa(idx, v),
+            onTap: () => _openSheet(context, ref,
+                existing: pausas[idx], editIndex: idx),
+            onDelete: () =>
+                ref.read(pausasProvider.notifier).deletePausa(idx),
+          ),
+        );
+      },
     );
   }
 }
@@ -109,37 +167,6 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _PausasList extends StatelessWidget {
-  const _PausasList({
-    required this.pausas,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final List<PausaConfig> pausas;
-  final void Function(int, bool) onToggle;
-  final ValueChanged<int> onEdit;
-  final ValueChanged<int> onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
-      itemCount: pausas.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, i) => _FadeSlide(
-        delay: Duration(milliseconds: i * 80),
-        child: PausaAppCard(
-          config: pausas[i],
-          onToggle: (v) => onToggle(i, v),
-          onTap: () => onEdit(i),
-          onDelete: () => onDelete(i),
-        ),
-      ),
-    );
-  }
-}
 
 class _FadeSlide extends StatefulWidget {
   const _FadeSlide({required this.delay, required this.child});
@@ -200,81 +227,52 @@ class _AccessibilityBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F0F1E),
-          border: Border.all(color: const Color(0xFF3A3A7A), width: 0.5),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.accessibility_new_rounded,
-                  color: Color(0xFF8A8ADA),
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Activa el servicio de accesibilidad',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: PausaColors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sin este permiso las pausas no pueden interceptar apps.',
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF4A4A8A), width: 0.5),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.accessibility_new_rounded,
+            color: Color(0xFF8A8ADA),
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Activa el permiso de accesibilidad para que las pausas funcionen.',
               style: GoogleFonts.dmSans(
-                fontSize: 12,
+                fontSize: 13,
                 color: PausaColors.textSecondary,
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Xiaomi/POCO: activa también Autostart en Ajustes → Apps → PAUSA\n'
-              'Samsung: desactiva optimización de batería para PAUSA\n'
-              'Otros: permite que PAUSA se ejecute en segundo plano',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                color: PausaColors.textMuted,
-                height: 1.6,
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: PausaColors.white,
+                borderRadius: BorderRadius.circular(8),
               ),
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onTap,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: PausaColors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Activar ahora',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: PausaColors.black,
-                  ),
+              child: Text(
+                'Activar',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: PausaColors.black,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

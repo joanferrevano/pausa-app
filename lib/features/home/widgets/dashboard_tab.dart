@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../shared/providers/usage_stats_provider.dart';
+import '../../../shared/providers/accessibility_provider.dart';
 import '../../../shared/providers/pausas_provider.dart';
 import 'screen_time_card.dart';
 import 'mini_stat_card.dart';
@@ -55,7 +56,14 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
     final activePausas =
         ref.watch(pausasProvider).where((p) => p.isActive).length;
 
-    return ListView(
+    return RefreshIndicator(
+      color: PausaColors.white,
+      backgroundColor: PausaColors.surface,
+      onRefresh: () async {
+        ref.invalidate(accessibilityProvider);
+        await ref.read(usageStatsProvider.notifier).load();
+      },
+      child: ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 96),
       children: [
         const _FadeSlide(
@@ -111,6 +119,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           ),
         ),
       ],
+      ),
     );
   }
 }
