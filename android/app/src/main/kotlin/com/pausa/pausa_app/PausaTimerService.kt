@@ -16,8 +16,8 @@ class PausaTimerService : Service() {
     private var timer: Timer? = null
     private var packageName = ""
     private var appName = ""
-    private var elapsedSeconds = 0
     private var maxSeconds = 0
+    private var elapsedSeconds = 0
 
     companion object {
         const val CHANNEL_ID = "pausa_timer_channel"
@@ -31,21 +31,39 @@ class PausaTimerService : Service() {
         elapsedSeconds = 0
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(maxSeconds))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(maxSeconds),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification(maxSeconds))
+        }
 
         timer = Timer()
         timer?.scheduleAtFixedRate(object : TimerTask() {
+            private var backgroundCheckCount = 0
+
             override fun run() {
-                // Stop if app left foreground
-                if (!isAppInForeground(packageName)) {
-                    PausaAccessibilityService.removeActiveTimer(packageName)
-                    PausaAccessibilityService.allowedApps.remove(packageName)
-                    stopSelf()
-                    return
+                val inForeground = isAppInForeground(packageName)
+
+                if (!inForeground) {
+                    backgroundCheckCount++
+                    // Require 3 consecutive background readings (3 s) before stopping.
+                    // Avoids false positives during internal screen transitions.
+                    if (backgroundCheckCount >= 3) {
+                        PausaAccessibilityService.endSession(packageName)
+                        stopSelf()
+                        return
+                    }
+                } else {
+                    backgroundCheckCount = 0 // reset on foreground confirmation
                 }
 
                 elapsedSeconds++
                 val remaining = maxSeconds - elapsedSeconds
+
                 val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                 nm.notify(NOTIFICATION_ID, buildNotification(remaining))
 
@@ -61,79 +79,90 @@ class PausaTimerService : Service() {
     }
 
     private fun expelUser() {
-        PausaAccessibilityService.removeActiveTimer(packageName)
-        PausaAccessibilityService.allowedApps.remove(packageName)
+        // Mark expelled BEFORE launching home so the AccessibilityService
+        // suppresses the resulting transition events (8-second window).
+        PausaAccessibilityService.markExpelled(packageName)
 
-        startActivity(Intent(this, PausaInterstitialActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra("packageName", packageName)
-            putExtra("appName", appName)
-            putExtra("waitSeconds", 0)
-            putExtra("maxMinutes", 0)
-            putExtra("timeUp", true)
-        })
+        // Small delay ensures markExpelled is processed before the home
+        // intent fires and Android emits window-change events.
+        Handler(Looper.getMainLooper()).postDelayed({
+            startActivity(Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        }, 200)
     }
 
     private fun isAppInForeground(pkg: String): Boolean {
-        // Strategy 1 — UsageStatsManager INTERVAL_BEST (most accurate)
+        // Strategy 1 — queryEvents with 30-second window.
+        // Tracks both FOREGROUND and BACKGROUND events so a stationary user
+        // (no navigation for minutes) is still correctly identified as in-foreground.
         try {
             val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
-            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - 3000, now)
+            val usageEvents = usm.queryEvents(now - 30_000, now)
+            val event = UsageEvents.Event()
+            var lastForegroundPkg = ""
+            var lastBackgroundPkg = ""
+            while (usageEvents.hasNextEvent()) {
+                usageEvents.getNextEvent(event)
+                when (event.eventType) {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND -> lastForegroundPkg = event.packageName
+                    UsageEvents.Event.MOVE_TO_BACKGROUND -> lastBackgroundPkg = event.packageName
+                }
+            }
+            // pkg moved to background more recently than foreground — not in foreground
+            if (lastBackgroundPkg == pkg && lastForegroundPkg != pkg) return false
+            if (lastForegroundPkg.isNotEmpty()) return lastForegroundPkg == pkg
+        } catch (e: Exception) { /* fall through */ }
+
+        // Strategy 2 — queryUsageStats with 60-second window
+        try {
+            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val now = System.currentTimeMillis()
+            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - 60_000, now)
             if (!stats.isNullOrEmpty()) {
                 val foreground = stats.maxByOrNull { it.lastTimeUsed }
                 if (foreground != null) return foreground.packageName == pkg
             }
         } catch (e: Exception) { /* fall through */ }
 
-        // Strategy 2 — queryEvents (more reliable on MIUI and some ROMs)
-        try {
-            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-            val now = System.currentTimeMillis()
-            val usageEvents = usm.queryEvents(now - 3000, now)
-            val event = UsageEvents.Event()
-            var lastForegroundPkg = ""
-            while (usageEvents.hasNextEvent()) {
-                usageEvents.getNextEvent(event)
-                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                    lastForegroundPkg = event.packageName
-                }
-            }
-            if (lastForegroundPkg.isNotEmpty()) return lastForegroundPkg == pkg
-        } catch (e: Exception) { /* fall through */ }
-
         // Strategy 3 — ActivityManager (deprecated but works as last resort)
         try {
-            val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
             @Suppress("DEPRECATION")
-            val tasks = am.getRunningTasks(1)
-            if (!tasks.isNullOrEmpty()) return tasks[0].topActivity?.packageName == pkg
+            val tasks = (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+                .getRunningTasks(1)
+            if (!tasks.isNullOrEmpty()) {
+                return tasks[0].topActivity?.packageName == pkg
+            }
         } catch (e: Exception) { /* fall through */ }
 
-        // All strategies failed — assume still in foreground to avoid false expulsion
-        return true
+        // Default false — timer must eventually fire even if all strategies fail
+        return false
     }
 
     private fun buildNotification(remainingSeconds: Int): Notification {
         val minutes = remainingSeconds / 60
         val seconds = remainingSeconds % 60
-        val timeText = if (minutes > 0) "${minutes}m ${seconds}s restantes" else "${seconds}s restantes"
+        val timeText = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("⏱ Pausa activa en $appName")
-            .setContentText(timeText)
+            .setContentTitle("⏱ $appName — $timeText restantes")
+            .setContentText("PAUSA activo")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
             .setColor(Color.parseColor("#E24B4A"))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "Pausa Timer", NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Muestra el tiempo restante en apps pausadas" }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+                CHANNEL_ID, "Pausa Timer",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply { description = "Tiempo restante en apps pausadas" }
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
         }
     }
 
@@ -142,7 +171,6 @@ class PausaTimerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         timer?.cancel()
-        PausaAccessibilityService.removeActiveTimer(packageName)
-        PausaAccessibilityService.allowedApps.remove(packageName)
+        PausaAccessibilityService.endSession(packageName)
     }
 }
