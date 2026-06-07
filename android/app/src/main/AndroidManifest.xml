@@ -59,8 +59,10 @@
             android:exported="false"
             android:theme="@style/LaunchTheme"
             android:excludeFromRecents="true"
+            android:noHistory="false"
             android:taskAffinity=""
-            android:launchMode="singleInstance" />
+            android:launchMode="singleInstance"
+            android:finishOnTaskLaunch="false" />
 
         <!-- Timer Service -->
         <service

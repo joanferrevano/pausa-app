@@ -1,12 +1,15 @@
 package com.pausa.pausa_app
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.*
 
@@ -14,16 +17,35 @@ class PausaInterstitialActivity : Activity() {
 
     private var countDownTimer: CountDownTimer? = null
     private var blockedPackageName = ""
+    private var appName = ""
+    private var waitSeconds = 15
+    private var maxMinutes = 20
+    private var timeUp = false
+    private var countdownCompleted = false
+    private var countdownView: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        // Disable back gesture on Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY
+            ) { /* back is disabled */ }
+        }
+
         blockedPackageName = intent.getStringExtra("packageName") ?: run { finish(); return }
-        val appName = intent.getStringExtra("appName") ?: blockedPackageName
-        val waitSeconds = intent.getIntExtra("waitSeconds", 15)
-        val maxMinutes = intent.getIntExtra("maxMinutes", 20)
-        val timeUp = intent.getBooleanExtra("timeUp", false)
+        appName = intent.getStringExtra("appName") ?: blockedPackageName
+        waitSeconds = intent.getIntExtra("waitSeconds", 15)
+        maxMinutes = intent.getIntExtra("maxMinutes", 20)
+        timeUp = intent.getBooleanExtra("timeUp", false)
+
+        // Exclude from recents
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            am.appTasks?.firstOrNull()?.setExcludeFromRecents(true)
+        }
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -32,9 +54,9 @@ class PausaInterstitialActivity : Activity() {
             setPadding(80, 80, 80, 80)
         }
 
-        val logoView = android.widget.ImageView(this).apply {
+        val logoView = ImageView(this).apply {
             setImageResource(R.drawable.splash_logo)
-            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.FIT_CENTER
             layoutParams = LinearLayout.LayoutParams(120, 120).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 bottomMargin = 40
@@ -50,10 +72,7 @@ class PausaInterstitialActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = 16
-            }
+            ).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = 16 }
         }
 
         val subtitleView = TextView(this).apply {
@@ -65,10 +84,7 @@ class PausaInterstitialActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = 60
-            }
+            ).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = 60 }
         }
 
         root.addView(logoView)
@@ -88,9 +104,8 @@ class PausaInterstitialActivity : Activity() {
             }
             root.addView(closeButton)
             closeButton.setOnClickListener { goHome() }
-            setContentView(root)
         } else {
-            val countdownView = TextView(this).apply {
+            val cdView = TextView(this).apply {
                 text = waitSeconds.toString()
                 textSize = 64f
                 setTextColor(Color.parseColor("#E24B4A"))
@@ -99,11 +114,9 @@ class PausaInterstitialActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    bottomMargin = 12
-                }
+                ).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = 12 }
             }
+            countdownView = cdView
 
             val countdownLabel = TextView(this).apply {
                 text = "segundos para continuar"
@@ -113,75 +126,105 @@ class PausaInterstitialActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    bottomMargin = 60
-                }
+                ).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = 40 }
             }
 
-            val cancelButton = Button(this).apply {
-                text = "No, mejor no"
-                textSize = 14f
-                setTextColor(Color.parseColor("#888888"))
-                setBackgroundColor(Color.TRANSPARENT)
+            val motivationText = TextView(this).apply {
+                text = "Tómate un momento. Tu futuro yo te lo agradecerá."
+                textSize = 12f
+                setTextColor(Color.parseColor("#444444"))
+                gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { bottomMargin = 16 }
+                ).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = 40 }
             }
 
-            root.addView(countdownView)
+            root.addView(cdView)
             root.addView(countdownLabel)
-            root.addView(cancelButton)
-            setContentView(root)
+            root.addView(motivationText)
+        }
 
-            cancelButton.setOnClickListener {
-                countDownTimer?.cancel()
-                goHome()
-            }
+        setContentView(root)
+    }
 
-            countDownTimer = object : CountDownTimer(waitSeconds * 1000L, 1000) {
-                override fun onTick(millisUntilFinished: Long) {
-                    val secondsLeft = (millisUntilFinished / 1000).toInt() + 1
-                    countdownView.text = secondsLeft.toString()
-                }
+    // ── Back button disabled — all three methods ──────────────────────────────
 
-                override fun onFinish() {
-                    // 3-second whitelist — just enough for the app to open
-                    PausaAccessibilityService.allowApp(blockedPackageName)
-                    // Register active timer so service won't re-intercept while inside
-                    PausaAccessibilityService.addActiveTimer(blockedPackageName)
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() { /* disabled */ }
 
-                    if (maxMinutes > 0) {
-                        val timerIntent = Intent(
-                            this@PausaInterstitialActivity,
-                            PausaTimerService::class.java
-                        ).apply {
-                            putExtra("packageName", blockedPackageName)
-                            putExtra("appName", appName)
-                            putExtra("maxMinutes", maxMinutes)
-                        }
-                        startService(timerIntent)
-                    }
-                    finish()
-                }
-            }.start()
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    override fun onResume() {
+        super.onResume()
+        if (!timeUp && !countdownCompleted) {
+            countdownView?.text = waitSeconds.toString()
+            startCountdown()
         }
     }
 
-    private fun goHome() {
-        countDownTimer?.cancel()
-        // Do NOT whitelist — force re-intercept next time user opens the app
-        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    override fun onPause() {
+        super.onPause()
+        if (!countdownCompleted) {
+            countDownTimer?.cancel()
+            countDownTimer = null
         }
-        startActivity(homeIntent)
-        finish()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!countdownCompleted) {
+            countDownTimer?.cancel()
+            countDownTimer = null
+            PausaAccessibilityService.allowedApps.remove(blockedPackageName)
+            PausaAccessibilityService.removeActiveTimer(blockedPackageName)
+            if (!isFinishing) finish()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         countDownTimer?.cancel()
+        if (!countdownCompleted) {
+            PausaAccessibilityService.allowedApps.remove(blockedPackageName)
+            PausaAccessibilityService.removeActiveTimer(blockedPackageName)
+        }
+    }
+
+    // ── Countdown ─────────────────────────────────────────────────────────────
+
+    private fun startCountdown() {
+        countDownTimer?.cancel()
+        countDownTimer = object : CountDownTimer(waitSeconds * 1000L, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                countdownView?.text = ((millisUntilFinished / 1000).toInt() + 1).toString()
+            }
+            override fun onFinish() {
+                countdownCompleted = true
+                PausaAccessibilityService.allowApp(blockedPackageName)
+                PausaAccessibilityService.addActiveTimer(blockedPackageName)
+                if (maxMinutes > 0) {
+                    startService(Intent(this@PausaInterstitialActivity, PausaTimerService::class.java).apply {
+                        putExtra("packageName", blockedPackageName)
+                        putExtra("appName", appName)
+                        putExtra("maxMinutes", maxMinutes)
+                    })
+                }
+                finish()
+            }
+        }.start()
+    }
+
+    private fun goHome() {
+        startActivity(Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        })
+        finish()
     }
 }
