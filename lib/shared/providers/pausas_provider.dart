@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/hive_service.dart';
+import '../../core/services/accessibility_service.dart';
 import '../../features/pausas/models/pausa_config.dart';
 
 final pausasProvider =
@@ -9,16 +10,23 @@ final pausasProvider =
 
 class PausasNotifier extends StateNotifier<List<PausaConfig>> {
   PausasNotifier() : super([]) {
-    _load();
+    _loadFromHive();
   }
 
-  void _load() {
+  Future<void> _loadFromHive() async {
     state = HiveService.pausasBox.values.toList();
+    await _syncToNative();
+  }
+
+  Future<void> _syncToNative() async {
+    final pausasList = state.map((p) => p.toMap()).toList();
+    await AccessibilityService.syncPausas(pausasList);
   }
 
   Future<void> addPausa(PausaConfig config) async {
     await HiveService.pausasBox.add(config);
     state = HiveService.pausasBox.values.toList();
+    await _syncToNative();
   }
 
   Future<void> updatePausa(int index, PausaConfig config) async {
@@ -44,6 +52,7 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
       await box.add(p);
     }
     state = box.values.toList();
+    await _syncToNative();
   }
 
   Future<void> togglePausa(int index, bool value) async {
@@ -52,5 +61,6 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
     final updated = state[index].copyWith(isActive: value);
     await box.put(key, updated);
     state = box.values.toList();
+    await _syncToNative();
   }
 }

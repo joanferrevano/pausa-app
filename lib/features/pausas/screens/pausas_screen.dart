@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../shared/providers/pausas_provider.dart';
+import '../../../shared/providers/accessibility_provider.dart';
 import '../models/pausa_config.dart';
 import '../widgets/pausa_app_card.dart';
 import '../widgets/add_pausa_sheet.dart';
@@ -35,6 +36,7 @@ class PausasScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pausas = ref.watch(pausasProvider);
+    final accessState = ref.watch(accessibilityProvider);
     return Scaffold(
       backgroundColor: PausaColors.black,
       body: SafeArea(
@@ -43,6 +45,15 @@ class PausasScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _Header(onAdd: () => _openSheet(context, ref)),
+            if (!accessState.isLoading && !accessState.isEnabled)
+              _AccessibilityBanner(
+                onTap: () async {
+                  await ref.read(accessibilityProvider.notifier).openSettings();
+                  Future.delayed(const Duration(seconds: 1), () {
+                    ref.read(accessibilityProvider.notifier).refresh();
+                  });
+                },
+              ),
             Expanded(
               child: pausas.isEmpty
                   ? const EmptyPausasState()
@@ -181,6 +192,92 @@ class _AddFab extends StatefulWidget {
 
   @override
   State<_AddFab> createState() => _AddFabState();
+}
+
+class _AccessibilityBanner extends StatelessWidget {
+  const _AccessibilityBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F0F1E),
+          border: Border.all(color: const Color(0xFF3A3A7A), width: 0.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.accessibility_new_rounded,
+                  color: Color(0xFF8A8ADA),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Activa el servicio de accesibilidad',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: PausaColors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sin este permiso las pausas no pueden interceptar apps.',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: PausaColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Xiaomi/POCO: activa también Autostart en Ajustes → Apps → PAUSA\n'
+              'Samsung: desactiva optimización de batería para PAUSA\n'
+              'Otros: permite que PAUSA se ejecute en segundo plano',
+              style: GoogleFonts.dmSans(
+                fontSize: 11,
+                color: PausaColors.textMuted,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: onTap,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: PausaColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'Activar ahora',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: PausaColors.black,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AddFabState extends State<_AddFab> {

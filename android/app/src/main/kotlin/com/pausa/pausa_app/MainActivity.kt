@@ -1,19 +1,28 @@
 package com.pausa.pausa_app
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import org.json.JSONArray
 
 class MainActivity : FlutterActivity() {
 
     private val channel = "com.pausa.pausa_app/usage_stats"
+    private val accessibilityChannel = "com.pausa.pausa_app/accessibility"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawableResource(android.R.color.black)
+        val keepaliveIntent = Intent(this, PausaKeepaliveService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(keepaliveIntent)
+        } else {
+            startService(keepaliveIntent)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -96,5 +105,34 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, accessibilityChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isAccessibilityEnabled" -> {
+                        result.success(isAccessibilityServiceEnabled())
+                    }
+                    "openAccessibilitySettings" -> {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        result.success(null)
+                    }
+                    "syncPausas" -> {
+                        val pausasList = call.argument<List<Map<String, Any>>>("pausas") ?: emptyList()
+                        val json = JSONArray(pausasList).toString()
+                        val prefs = getSharedPreferences("pausa_prefs", MODE_PRIVATE)
+                        prefs.edit().putString("pausas_list", json).apply()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val prefString = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return prefString.contains("${packageName}/${packageName}.PausaAccessibilityService")
     }
 }
