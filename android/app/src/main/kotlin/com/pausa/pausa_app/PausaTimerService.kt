@@ -1,23 +1,23 @@
 package com.pausa.pausa_app
 
 import android.app.*
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.*
 import androidx.core.app.NotificationCompat
-import android.app.usage.UsageStatsManager
 import java.util.Timer
 import java.util.TimerTask
 
 class PausaTimerService : Service() {
 
     private var timer: Timer? = null
-    private var checkTimer: Timer? = null
     private var packageName = ""
     private var appName = ""
-    private var maxMinutes = 20
     private var elapsedSeconds = 0
+    private var maxSeconds = 0
 
     companion object {
         const val CHANNEL_ID = "pausa_timer_channel"
@@ -27,38 +27,31 @@ class PausaTimerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         packageName = intent?.getStringExtra("packageName") ?: return START_NOT_STICKY
         appName = intent.getStringExtra("appName") ?: packageName
-        maxMinutes = intent.getIntExtra("maxMinutes", 20)
+        maxSeconds = intent.getIntExtra("maxMinutes", 20) * 60
         elapsedSeconds = 0
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(maxMinutes * 60))
+        startForeground(NOTIFICATION_ID, buildNotification(maxSeconds))
 
-        // Main countdown timer
         timer = Timer()
         timer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
-                elapsedSeconds++
-                val remainingSeconds = (maxMinutes * 60) - elapsedSeconds
-                val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                nm.notify(NOTIFICATION_ID, buildNotification(remainingSeconds))
-
-                if (elapsedSeconds >= maxMinutes * 60) {
-                    timer?.cancel()
-                    expelUser()
-                    stopSelf()
-                }
-            }
-        }, 1000, 1000)
-
-        // Background-detection timer — stop everything if user leaves the app
-        checkTimer = Timer()
-        checkTimer?.scheduleAtFixedRate(object : TimerTask() {
-            override fun run() {
+                // Stop if app left foreground
                 if (!isAppInForeground(packageName)) {
-                    timer?.cancel()
-                    checkTimer?.cancel()
                     PausaAccessibilityService.removeActiveTimer(packageName)
                     PausaAccessibilityService.allowedApps.remove(packageName)
+                    stopSelf()
+                    return
+                }
+
+                elapsedSeconds++
+                val remaining = maxSeconds - elapsedSeconds
+                val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                nm.notify(NOTIFICATION_ID, buildNotification(remaining))
+
+                if (elapsedSeconds >= maxSeconds) {
+                    timer?.cancel()
+                    expelUser()
                     stopSelf()
                 }
             }
@@ -83,12 +76,43 @@ class PausaTimerService : Service() {
     }
 
     private fun isAppInForeground(pkg: String): Boolean {
-        return try {
+        // Strategy 1 — UsageStatsManager INTERVAL_BEST (most accurate)
+        try {
             val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
             val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - 3000, now)
-            stats?.maxByOrNull { it.lastTimeUsed }?.packageName == pkg
-        } catch (e: Exception) { true }
+            if (!stats.isNullOrEmpty()) {
+                val foreground = stats.maxByOrNull { it.lastTimeUsed }
+                if (foreground != null) return foreground.packageName == pkg
+            }
+        } catch (e: Exception) { /* fall through */ }
+
+        // Strategy 2 — queryEvents (more reliable on MIUI and some ROMs)
+        try {
+            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val now = System.currentTimeMillis()
+            val usageEvents = usm.queryEvents(now - 3000, now)
+            val event = UsageEvents.Event()
+            var lastForegroundPkg = ""
+            while (usageEvents.hasNextEvent()) {
+                usageEvents.getNextEvent(event)
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    lastForegroundPkg = event.packageName
+                }
+            }
+            if (lastForegroundPkg.isNotEmpty()) return lastForegroundPkg == pkg
+        } catch (e: Exception) { /* fall through */ }
+
+        // Strategy 3 — ActivityManager (deprecated but works as last resort)
+        try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            @Suppress("DEPRECATION")
+            val tasks = am.getRunningTasks(1)
+            if (!tasks.isNullOrEmpty()) return tasks[0].topActivity?.packageName == pkg
+        } catch (e: Exception) { /* fall through */ }
+
+        // All strategies failed — assume still in foreground to avoid false expulsion
+        return true
     }
 
     private fun buildNotification(remainingSeconds: Int): Notification {
@@ -118,7 +142,6 @@ class PausaTimerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         timer?.cancel()
-        checkTimer?.cancel()
         PausaAccessibilityService.removeActiveTimer(packageName)
         PausaAccessibilityService.allowedApps.remove(packageName)
     }

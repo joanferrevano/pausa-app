@@ -2,6 +2,7 @@ package com.pausa.pausa_app
 
 import android.app.*
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.*
 import androidx.core.app.NotificationCompat
 
@@ -15,7 +16,15 @@ class PausaKeepaliveService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -41,12 +50,13 @@ class PausaKeepaliveService : Service() {
 
     private fun buildNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("PAUSA activo")
-            .setContentText("Protegiendo tus pausas en segundo plano")
+            .setContentTitle("PAUSA")
+            .setContentText("")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setSilent(true)
             .build()
     }
 

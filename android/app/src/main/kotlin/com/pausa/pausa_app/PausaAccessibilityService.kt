@@ -14,9 +14,7 @@ class PausaAccessibilityService : AccessibilityService() {
     companion object {
         var instance: PausaAccessibilityService? = null
 
-        // 3-second window after countdown completes — lets the blocked app open
         internal val allowedApps = mutableMapOf<String, Long>()
-        // Apps user is actively using after passing countdown
         private val activeTimerApps = mutableSetOf<String>()
 
         fun allowApp(packageName: String) {
@@ -36,18 +34,16 @@ class PausaAccessibilityService : AccessibilityService() {
             val expiry = allowedApps[packageName]
             if (expiry != null && System.currentTimeMillis() < expiry) return true
             allowedApps.remove(packageName)
-            // Active timer = user is inside the app navigating — don't interrupt
             return packageName in activeTimerApps
         }
     }
 
     private var lastPackage = ""
     private var lastPackageTime = 0L
-    private val COOLDOWN_MS = 1500L
+    private val COOLDOWN_MS = 500L
     private val handler = Handler(Looper.getMainLooper())
     private var launchPending = false
 
-    // Home / launcher packages — user pressed Home button
     private val homePackages = setOf(
         "com.android.launcher",
         "com.android.launcher2",
@@ -67,15 +63,18 @@ class PausaAccessibilityService : AccessibilityService() {
         "com.nokia.launcher",
     )
 
-    // System packages — just ignore entirely
-    private val systemPackages = setOf(
+    // Recents / task switcher — treat same as home for reset purposes
+    private val taskSwitcherPackages = setOf(
         "com.android.systemui",
+        "com.samsung.android.app.spage",
+        "com.miui.securitycenter",
+    )
+
+    private val systemPackages = setOf(
         "android",
         "com.android.settings",
         "com.android.phone",
         "com.android.inputmethod.latin",
-        "com.samsung.android.app.spage",
-        "com.miui.securitycenter",
         "com.miui.systemAdSolution",
     )
 
@@ -98,7 +97,7 @@ class PausaAccessibilityService : AccessibilityService() {
         val packageName = event?.packageName?.toString() ?: return
         if (packageName == applicationContext.packageName) return
 
-        // Home / launcher — user pressed Home
+        // Home — user pressed home button
         if (packageName in homePackages) {
             if (lastPackage in activeTimerApps) {
                 removeActiveTimer(lastPackage)
@@ -106,8 +105,17 @@ class PausaAccessibilityService : AccessibilityService() {
             }
             allowedApps.clear()
             launchPending = false
-            lastPackage = packageName
-            lastPackageTime = System.currentTimeMillis()
+            lastPackage = ""     // RESET — next open of any app always re-evaluates
+            lastPackageTime = 0L
+            return
+        }
+
+        // Task switcher / recents opened
+        if (packageName in taskSwitcherPackages) {
+            allowedApps.clear()
+            launchPending = false
+            lastPackage = ""     // RESET
+            lastPackageTime = 0L
             return
         }
 
@@ -115,21 +123,30 @@ class PausaAccessibilityService : AccessibilityService() {
         if (packageName.startsWith("com.android.") &&
             packageName != "com.android.chrome") return
 
-        // User is navigating inside an allowed app — let them through freely
-        if (isAllowed(packageName)) return
+        // User is navigating inside an allowed/timer app — pass through freely
+        if (isAllowed(packageName)) {
+            lastPackage = packageName
+            lastPackageTime = System.currentTimeMillis()
+            return
+        }
 
         val now = System.currentTimeMillis()
 
-        // New app in foreground — if previous had active timer, user left it
+        // New package in foreground — check if previous was a paused app
         if (packageName != lastPackage && lastPackage.isNotEmpty()) {
             if (lastPackage in activeTimerApps) {
                 removeActiveTimer(lastPackage)
                 allowedApps.remove(lastPackage)
             }
+            // If last package was a blocked app, reset so next open re-triggers
+            if (getPausaForPackage(lastPackage) != null) {
+                lastPackage = ""
+                lastPackageTime = 0L
+            }
             launchPending = false
         }
 
-        // Cooldown — ignore duplicate events for same package within window
+        // Cooldown — only blocks duplicate events for the EXACT same package
         if (packageName == lastPackage && (now - lastPackageTime) < COOLDOWN_MS) return
         if (launchPending) return
 
@@ -139,7 +156,6 @@ class PausaAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Clean stale state before launching fresh interstitial
         allowedApps.remove(packageName)
         removeActiveTimer(packageName)
 
@@ -157,7 +173,6 @@ class PausaAccessibilityService : AccessibilityService() {
             putExtra("maxMinutes", pausaConfig.third)
         })
 
-        // Release launch lock after interstitial has had time to appear
         handler.postDelayed({ launchPending = false }, 600L)
     }
 
