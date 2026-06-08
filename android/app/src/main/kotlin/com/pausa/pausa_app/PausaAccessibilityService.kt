@@ -24,7 +24,8 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
-            Log.d("PausaDebug", "poller — current: $current / last: $lastForegroundPackage / isExpelling: $isExpelling")
+            Log.d("PausaDebug", "poller — current: $current / last: $lastForegroundPackage / isExpelling: $isExpelling / pending: ${pendingIntercepts.keys}")
+
             // PAUSA itself came to foreground — do NOT stop timer here.
             // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll()
             // so there is exactly one stop path and no race condition.
@@ -34,6 +35,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
+
             // Home or task switcher — handle and force-reset lastForegroundPackage so
             // the next app open is always detected as a new event.
             if (current in homeAndLauncherPackages || current in taskSwitcherPackages) {
@@ -42,6 +44,38 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
+
+            // Process pending intercepts — fire when the target app is confirmed foreground
+            val now = System.currentTimeMillis()
+            val iter = pendingIntercepts.iterator()
+            while (iter.hasNext()) {
+                val (pkg, deadline) = iter.next()
+                if (now > deadline) {
+                    Log.d("PausaDebug", "PENDING intercept expired for $pkg")
+                    iter.remove()
+                    continue
+                }
+                if (current == pkg) {
+                    iter.remove()
+                    if (!isInActiveSession(pkg) && !isExpelled(pkg) && !isExpelling) {
+                        val pausaConfig = getPausaForPackage(pkg) ?: continue
+                        Log.d("PausaDebug", "PENDING intercept firing for $pkg")
+                        startActivity(Intent(this@PausaAccessibilityService,
+                            PausaInterstitialActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                            putExtra("packageName", pkg)
+                            putExtra("appName", pausaConfig.first)
+                            putExtra("waitSeconds", pausaConfig.second)
+                            putExtra("maxMinutes", pausaConfig.third)
+                            putExtra("userInitiated", true)
+                        })
+                    }
+                }
+            }
+
             if (current != lastForegroundPackage) {
                 handleAppChange(current)
                 lastForegroundPackage = current
@@ -53,6 +87,8 @@ class PausaAccessibilityService : AccessibilityService() {
     companion object {
         private val activeSessionApps = mutableSetOf<String>()
         private val expelledApps = mutableMapOf<String, Long>()
+        // pkg -> deadline ms: packages waiting to be confirmed in foreground before intercept
+        val pendingIntercepts = mutableMapOf<String, Long>()
 
         // Package currently being timed — used to cancel the timer on voluntary exit.
         var activeTimerPackage: String = ""
@@ -60,6 +96,7 @@ class PausaAccessibilityService : AccessibilityService() {
         fun startSession(packageName: String) {
             activeSessionApps.add(packageName)
             expelledApps.remove(packageName)
+            pendingIntercepts.remove(packageName) // no longer needs intercepting
             activeTimerPackage = packageName
         }
 
@@ -73,6 +110,7 @@ class PausaAccessibilityService : AccessibilityService() {
             isExpelling = true
             activeSessionApps.remove(packageName)
             expelledApps[packageName] = System.currentTimeMillis() + 10000L
+            pendingIntercepts.remove(packageName)
             // Reset global expulsion guard after 10 seconds — matches expelled window
             Handler(Looper.getMainLooper()).postDelayed({ isExpelling = false }, 10000)
         }
@@ -93,10 +131,11 @@ class PausaAccessibilityService : AccessibilityService() {
         fun clearAll() {
             activeSessionApps.clear()
             expelledApps.clear()
+            pendingIntercepts.clear()
             isExpelling = false
         }
 
-        // True for 3 seconds after any expulsion — blocks all intercepts globally
+        // True for 10 seconds after any expulsion — blocks all intercepts globally
         // to prevent the crash loop caused by our own app coming to foreground.
         var isExpelling = false
             private set
@@ -227,6 +266,7 @@ class PausaAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(foregroundPoller)
+        pendingIntercepts.clear()
     }
 
     // ── Core logic — shared by onAccessibilityEvent and foregroundPoller ─────
@@ -324,18 +364,17 @@ class PausaAccessibilityService : AccessibilityService() {
             return
         }
 
-        Log.d("PausaDebug", "INTERCEPTING — launching interstitial for $packageName")
-        // Intercept — show countdown
-        startActivity(Intent(this, PausaInterstitialActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra("packageName", packageName)
-            putExtra("appName", pausaConfig.first)
-            putExtra("waitSeconds", pausaConfig.second)
-            putExtra("maxMinutes", pausaConfig.third)
-            putExtra("userInitiated", true) // marks a legitimate service intercept
-        })
+        // Queue a pending intercept — the poller fires it once it confirms the app
+        // is actually in the foreground. This handles cold-start splash screens (e.g.
+        // TikTok) where the accessibility event fires during the splash activity but
+        // UsageStats won't report the app as foreground until the main activity loads.
+        if (pendingIntercepts.containsKey(packageName)) {
+            Log.d("PausaDebug", "PENDING intercept already queued for $packageName — skipping")
+            return
+        }
+        val deadline = System.currentTimeMillis() + 3000L
+        pendingIntercepts[packageName] = deadline
+        Log.d("PausaDebug", "PENDING intercept queued for $packageName (deadline in 3s)")
     }
 
     // ── UsageStats poller ─────────────────────────────────────────────────────
