@@ -3,6 +3,8 @@ package com.pausa.pausa_app
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -27,9 +29,12 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
-        // User opened PAUSA — stop any running blocked-app timer so the timer
-        // doesn't expire and expel the user the next time they open that app.
-        PausaTimerService.stopAll()
+        // Defer timer stop to avoid ANR — Flutter initialization and PausaTimerService
+        // both run on the main thread. Calling stopAll() synchronously during onResume
+        // while Flutter is still loading causes a deadlock on low-end devices (MIUI).
+        Handler(Looper.getMainLooper()).postDelayed({
+            PausaTimerService.stopAll()
+        }, 300)
     }
 
     // Handles relaunches when launchMode="singleTop" brings the existing instance

@@ -83,7 +83,8 @@ class PausaTimerService : Service() {
             Log.d("PausaTimer", "stopAll: stopping timer for ${inst.packageName}")
             inst.isStopping = true
             inst.handler.removeCallbacks(inst.timerRunnable)
-            inst.stopSelf()
+            // Post stopSelf to avoid calling it from an external thread context
+            inst.handler.post { inst.stopSelf() }
         }
     }
 
