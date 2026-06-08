@@ -109,6 +109,13 @@ class PausaAccessibilityService : AccessibilityService() {
         "com.android.settings",
         "com.android.phone",
         "com.android.inputmethod.latin",
+        // MIUI system UI surfaces — appear on notification shade swipe, screenshot, etc.
+        "miui.systemui.plugin",
+        "com.miui.systemui",
+        "com.miui.notificationmanager",
+        "com.miui.securitycenter",
+        "com.miui.screenshot",
+        "com.miui.mediaviewer",
     )
 
     private val homeAndLauncherPackages = setOf(
@@ -173,9 +180,15 @@ class PausaAccessibilityService : AccessibilityService() {
     )
 
     override fun onServiceConnected() {
-        Log.d("PausaDebug", "onServiceConnected — clearAll done, poller starting")
-        // Wipe stale session state from before the service was killed/restarted.
-        clearAll()
+        // Only clear state if no timer is running. If a session is active (user is inside
+        // a blocked app with the timer counting down), preserve it — clearAll would
+        // wipe activeSessionApps and cause the next app event to re-intercept.
+        if (!PausaTimerService.isRunning) {
+            clearAll()
+            Log.d("PausaDebug", "onServiceConnected — clearAll done (no active timer), poller starting")
+        } else {
+            Log.d("PausaDebug", "onServiceConnected — timer running for ${PausaTimerService.currentPackage}, skipping clearAll")
+        }
         lastForegroundPackage = ""
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -233,6 +246,12 @@ class PausaAccessibilityService : AccessibilityService() {
         }
         if (packageName.contains("pausa")) {
             Log.d("PausaDebug", "GUARD contains-pausa — skipping $packageName")
+            return
+        }
+        // MIUI system UI (notification shade, status bar animations, etc.)
+        if (packageName.contains("miui.systemui") ||
+            packageName.contains("miui.system")) {
+            Log.d("PausaDebug", "GUARD miui-system — skipping $packageName")
             return
         }
 
