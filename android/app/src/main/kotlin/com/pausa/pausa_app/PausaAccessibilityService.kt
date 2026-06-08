@@ -229,9 +229,12 @@ class PausaAccessibilityService : AccessibilityService() {
             clearAll()
             Log.d("PausaDebug", "onServiceConnected — clearAll done (no active timer), poller starting")
         } else {
-            Log.d("PausaDebug", "onServiceConnected — timer running for ${PausaTimerService.currentPackage}, skipping clearAll")
+            Log.d("PausaDebug", "onServiceConnected — timer active for ${PausaTimerService.currentPackage}, preserving session state")
         }
-        lastForegroundPackage = ""
+        // Sentinel value — guarantees the first poller tick calls handleAppChange for
+        // whatever app is currently in foreground, even if it was already there before
+        // the service connected (e.g. TikTok open in background when PAUSA was closed).
+        lastForegroundPackage = "__reset__"
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                     AccessibilityEvent.TYPE_WINDOWS_CHANGED or
