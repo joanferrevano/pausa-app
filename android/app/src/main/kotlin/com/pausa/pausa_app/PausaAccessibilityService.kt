@@ -61,6 +61,12 @@ class PausaAccessibilityService : AccessibilityService() {
             }
             return true
         }
+
+        // Call from onServiceConnected to wipe stale state after a service restart.
+        fun clearAll() {
+            activeSessionApps.clear()
+            expelledApps.clear()
+        }
     }
 
     private val ignoredPackages = setOf(
@@ -73,33 +79,70 @@ class PausaAccessibilityService : AccessibilityService() {
     )
 
     private val homeAndLauncherPackages = setOf(
-        "com.miui.home",
+        // Stock Android
         "com.android.launcher",
         "com.android.launcher2",
         "com.android.launcher3",
+        // Pixel / Google
         "com.google.android.apps.nexuslauncher",
+        // Xiaomi / MIUI
+        "com.miui.home",
+        // Samsung / One UI
         "com.sec.android.app.launcher",
         "com.samsung.android.app.spage",
+        // OnePlus / OxygenOS
         "net.oneplus.launcher",
+        "com.oneplus.launcher",
+        // Oppo / ColorOS
         "com.oppo.launcher",
         "com.coloros.launcher",
+        // Realme / Realme UI
         "com.realme.launcher",
+        // Vivo / Funtouch / OriginOS
+        "com.vivo.launcher",
         "com.bbk.launcher2",
+        // Huawei / EMUI / HarmonyOS
         "com.huawei.android.launcher",
+        // LG
         "com.lge.launcher3",
+        // Sony
         "com.sonyericsson.home",
+        "com.sony.xperia.launcher",
+        // HTC
+        "com.htc.launcher",
+        // Nokia
         "com.nokia.launcher",
+        // Asus / ROG
+        "com.asus.launcher",
+        "com.asus.launcher3",
+        // Nothing Phone
+        "com.nothing.launcher",
+        // Transsion (itel, Tecno, Infinix)
+        "com.transsion.launcher",
     )
 
     private val taskSwitcherPackages = setOf(
+        // Most ROMs route recents through SystemUI
         "com.android.systemui",
+        // MIUI recents is part of the home
         "com.miui.home",
+        // Samsung
         "com.sec.android.app.launcher",
+        // Huawei
         "com.huawei.android.launcher",
+        // OnePlus
         "net.oneplus.launcher",
+        "com.oneplus.launcher",
+        // Oppo / Realme
+        "com.oppo.launcher",
+        "com.coloros.launcher",
+        "com.realme.launcher",
     )
 
     override fun onServiceConnected() {
+        // Wipe stale session state from before the service was killed/restarted.
+        clearAll()
+        lastForegroundPackage = ""
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                     AccessibilityEvent.TYPE_WINDOWS_CHANGED or
@@ -158,14 +201,16 @@ class PausaAccessibilityService : AccessibilityService() {
         if (packageName.startsWith("com.android.") &&
             packageName != "com.android.chrome") return
 
-        // In active session — pass through freely
-        if (isInActiveSession(packageName)) return
-
-        // Recently expelled — suppress and consume the window
+        // Recently expelled — suppress BEFORE active-session check.
+        // markExpelled removes from activeSessionApps, but the ordering makes
+        // intent explicit and guards against any future state inconsistency.
         if (isExpelled(packageName)) {
             expelledApps.remove(packageName)
             return
         }
+
+        // In active session — pass through freely
+        if (isInActiveSession(packageName)) return
 
         // Different app came to foreground — end previous session
         if (lastForegroundPackage != packageName &&
