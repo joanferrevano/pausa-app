@@ -104,6 +104,9 @@ class PausaAccessibilityService : AccessibilityService() {
 
     private val ignoredPackages = setOf(
         "com.pausa.pausa_app",
+        // SystemUI = status bar + notification shade, NOT a task switcher.
+        // On MIUI, swiping down the notification shade fires SystemUI events —
+        // keeping it here (not in taskSwitcherPackages) prevents session kills.
         "com.android.systemui",
         "android",
         "com.android.settings",
@@ -162,9 +165,9 @@ class PausaAccessibilityService : AccessibilityService() {
     )
 
     private val taskSwitcherPackages = setOf(
-        // Most ROMs route recents through SystemUI
-        "com.android.systemui",
-        // MIUI recents is part of the home
+        // com.android.systemui intentionally excluded — it fires on notification shade
+        // swipe too, which would kill sessions. Moved to ignoredPackages instead.
+        // MIUI recents is part of the home package
         "com.miui.home",
         // Samsung
         "com.sec.android.app.launcher",
@@ -273,14 +276,12 @@ class PausaAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Task switcher — end active session
+        // Task switcher — transient UI, do NOT end the session.
+        // The user may return to the same app; only reset lastForegroundPackage so
+        // the next foreground app is detected correctly.
         if (packageName in taskSwitcherPackages) {
-            Log.d("PausaDebug", "GUARD task-switcher — ending session for $lastForegroundPackage")
-            if (lastForegroundPackage in activeSessionApps) {
-                sendStopTimer(lastForegroundPackage)
-                endSession(lastForegroundPackage)
-            }
-            lastForegroundPackage = "" // ALWAYS reset so next app open is detected fresh
+            Log.d("PausaDebug", "GUARD task-switcher — resetting last (no session end) for $lastForegroundPackage")
+            lastForegroundPackage = ""
             return
         }
 
