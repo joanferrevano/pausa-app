@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 
 class PausaAccessibilityService : AccessibilityService() {
@@ -23,6 +24,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
+            Log.d("PausaDebug", "poller — current: $current / last: $lastForegroundPackage / isExpelling: $isExpelling")
             // PAUSA itself came to foreground — do NOT stop timer here.
             // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll()
             // so there is exactly one stop path and no race condition.
@@ -171,6 +173,7 @@ class PausaAccessibilityService : AccessibilityService() {
     )
 
     override fun onServiceConnected() {
+        Log.d("PausaDebug", "onServiceConnected — clearAll done, poller starting")
         // Wipe stale session state from before the service was killed/restarted.
         clearAll()
         lastForegroundPackage = ""
@@ -219,20 +222,30 @@ class PausaAccessibilityService : AccessibilityService() {
     }
 
     private fun handleAppChange(packageName: String) {
+        Log.d("PausaDebug", "handleAppChange — pkg: $packageName / inSession: ${isInActiveSession(packageName)} / expelled: ${isExpelled(packageName)} / expelling: $isExpelling")
+
         // Our own app came to foreground — do NOT stop timer here.
         // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll().
         if (packageName == applicationContext.packageName ||
             packageName.startsWith("com.pausa.")) {
+            Log.d("PausaDebug", "GUARD pausa-package — skipping $packageName")
             return
         }
-        if (packageName.contains("pausa")) return
+        if (packageName.contains("pausa")) {
+            Log.d("PausaDebug", "GUARD contains-pausa — skipping $packageName")
+            return
+        }
 
         // Global expulsion guard — ignore all events for 10 seconds after any expulsion
         // to prevent the crash loop caused by our MainActivity coming to foreground
-        if (isExpelling) return
+        if (isExpelling) {
+            Log.d("PausaDebug", "GUARD isExpelling — skipping $packageName")
+            return
+        }
 
         // Home / launcher came to foreground — end active session
         if (packageName in homeAndLauncherPackages) {
+            Log.d("PausaDebug", "GUARD home-launcher — ending session for $lastForegroundPackage")
             if (lastForegroundPackage in activeSessionApps) {
                 sendStopTimer(lastForegroundPackage)
                 endSession(lastForegroundPackage)
@@ -243,6 +256,7 @@ class PausaAccessibilityService : AccessibilityService() {
 
         // Task switcher — end active session
         if (packageName in taskSwitcherPackages) {
+            Log.d("PausaDebug", "GUARD task-switcher — ending session for $lastForegroundPackage")
             if (lastForegroundPackage in activeSessionApps) {
                 sendStopTimer(lastForegroundPackage)
                 endSession(lastForegroundPackage)
@@ -251,31 +265,46 @@ class PausaAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (packageName in ignoredPackages) return
+        if (packageName in ignoredPackages) {
+            Log.d("PausaDebug", "GUARD ignoredPackages — skipping $packageName")
+            return
+        }
         if (packageName.startsWith("com.android.") &&
-            packageName != "com.android.chrome") return
+            packageName != "com.android.chrome") {
+            Log.d("PausaDebug", "GUARD com.android.* — skipping $packageName")
+            return
+        }
 
         // Recently expelled — suppress BEFORE active-session check.
         // markExpelled removes from activeSessionApps, but the ordering makes
         // intent explicit and guards against any future state inconsistency.
         if (isExpelled(packageName)) {
+            Log.d("PausaDebug", "GUARD isExpelled — suppressing $packageName")
             expelledApps.remove(packageName)
             return
         }
 
         // In active session — pass through freely
-        if (isInActiveSession(packageName)) return
+        if (isInActiveSession(packageName)) {
+            Log.d("PausaDebug", "GUARD inActiveSession — passing through $packageName")
+            return
+        }
 
         // Different app came to foreground — end previous session
         if (lastForegroundPackage != packageName &&
             lastForegroundPackage in activeSessionApps) {
+            Log.d("PausaDebug", "ending previous session for $lastForegroundPackage (new app: $packageName)")
             sendStopTimer(lastForegroundPackage)
             endSession(lastForegroundPackage)
         }
 
         // Check if this app has an active pausa
-        val pausaConfig = getPausaForPackage(packageName) ?: return
+        val pausaConfig = getPausaForPackage(packageName) ?: run {
+            Log.d("PausaDebug", "no pausa config for $packageName — skipping")
+            return
+        }
 
+        Log.d("PausaDebug", "INTERCEPTING — launching interstitial for $packageName")
         // Intercept — show countdown
         startActivity(Intent(this, PausaInterstitialActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
