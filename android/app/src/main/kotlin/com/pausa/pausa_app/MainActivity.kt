@@ -25,6 +25,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // User opened PAUSA — stop any running blocked-app timer so the timer
+        // doesn't expire and expel the user the next time they open that app.
+        sendBroadcast(Intent("com.pausa.STOP_ALL_TIMERS"))
+    }
+
     // Handles relaunches when launchMode="singleTop" brings the existing instance
     // to the front (e.g. returning from accessibility settings). Flutter needs
     // setIntent so plugins that inspect the intent see the latest one.

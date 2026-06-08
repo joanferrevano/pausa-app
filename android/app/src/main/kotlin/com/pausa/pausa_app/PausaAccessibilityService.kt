@@ -23,10 +23,19 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
-            // Skip our own app and any active expulsion window
-            if (!current.startsWith("com.pausa.") &&
-                current != applicationContext.packageName &&
-                current != lastForegroundPackage) {
+            // PAUSA itself came to foreground — stop any active timer
+            if (current == applicationContext.packageName ||
+                current.startsWith("com.pausa.")) {
+                if (lastForegroundPackage.isNotEmpty() &&
+                    lastForegroundPackage in activeSessionApps) {
+                    sendStopTimer(lastForegroundPackage)
+                    endSession(lastForegroundPackage)
+                }
+                lastForegroundPackage = current
+                handler.postDelayed(this, 1000)
+                return
+            }
+            if (current != lastForegroundPackage) {
                 handleAppChange(current)
                 lastForegroundPackage = current
             }
@@ -38,14 +47,19 @@ class PausaAccessibilityService : AccessibilityService() {
         private val activeSessionApps = mutableSetOf<String>()
         private val expelledApps = mutableMapOf<String, Long>()
 
+        // Package currently being timed — used to cancel the timer on voluntary exit.
+        var activeTimerPackage: String = ""
+
         fun startSession(packageName: String) {
             activeSessionApps.add(packageName)
             expelledApps.remove(packageName)
+            activeTimerPackage = packageName
         }
 
         fun endSession(packageName: String) {
             activeSessionApps.remove(packageName)
             expelledApps.remove(packageName)
+            if (activeTimerPackage == packageName) activeTimerPackage = ""
         }
 
         fun markExpelled(packageName: String) {
@@ -193,10 +207,26 @@ class PausaAccessibilityService : AccessibilityService() {
 
     // ── Core logic — shared by onAccessibilityEvent and foregroundPoller ─────
 
+    /** Tell the timer service to stop for a package the user voluntarily left. */
+    private fun sendStopTimer(pkg: String) {
+        if (pkg.isEmpty()) return
+        applicationContext.sendBroadcast(
+            Intent("com.pausa.STOP_TIMER").putExtra("packageName", pkg)
+        )
+    }
+
     private fun handleAppChange(packageName: String) {
-        // Hard guard — never process our own app under any circumstances
-        if (packageName == applicationContext.packageName) return
-        if (packageName.startsWith("com.pausa.")) return
+        // Our own app came to foreground — stop any active timer (safety net;
+        // primary path is the poller, but belt-and-braces for accessibility events).
+        if (packageName == applicationContext.packageName ||
+            packageName.startsWith("com.pausa.")) {
+            if (lastForegroundPackage.isNotEmpty() &&
+                lastForegroundPackage in activeSessionApps) {
+                sendStopTimer(lastForegroundPackage)
+                endSession(lastForegroundPackage)
+            }
+            return
+        }
         if (packageName.contains("pausa")) return
 
         // Global expulsion guard — ignore all events for 10 seconds after any expulsion
@@ -206,6 +236,7 @@ class PausaAccessibilityService : AccessibilityService() {
         // Home / launcher came to foreground — end active session
         if (packageName in homeAndLauncherPackages) {
             if (lastForegroundPackage in activeSessionApps) {
+                sendStopTimer(lastForegroundPackage)
                 endSession(lastForegroundPackage)
             }
             lastForegroundPackage = ""
@@ -215,6 +246,7 @@ class PausaAccessibilityService : AccessibilityService() {
         // Task switcher — end active session
         if (packageName in taskSwitcherPackages) {
             if (lastForegroundPackage in activeSessionApps) {
+                sendStopTimer(lastForegroundPackage)
                 endSession(lastForegroundPackage)
             }
             lastForegroundPackage = ""
@@ -239,6 +271,7 @@ class PausaAccessibilityService : AccessibilityService() {
         // Different app came to foreground — end previous session
         if (lastForegroundPackage != packageName &&
             lastForegroundPackage in activeSessionApps) {
+            sendStopTimer(lastForegroundPackage)
             endSession(lastForegroundPackage)
         }
 

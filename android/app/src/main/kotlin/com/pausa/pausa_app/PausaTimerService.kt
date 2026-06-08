@@ -1,7 +1,12 @@
 package com.pausa.pausa_app
 
 import android.app.*
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.os.*
 import android.util.Log
@@ -13,6 +18,29 @@ class PausaTimerService : Service() {
     private var packageName: String = ""
     private var appName: String = ""
     private var maxSeconds: Int = 0
+
+    // Stops all timers when PAUSA app opens (MainActivity.onResume).
+    private val stopAllReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d("PausaTimer", "STOP_ALL — PAUSA opened, stopping timer for $packageName")
+            handler.removeCallbacks(timerRunnable)
+            PausaAccessibilityService.endSession(packageName)
+            stopSelf()
+        }
+    }
+
+    // Stops the timer when the AccessibilityService detects the user left voluntarily.
+    private val stopReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val pkg = intent?.getStringExtra("packageName") ?: return
+            if (pkg == packageName) {
+                Log.d("PausaTimer", "stop broadcast received for $pkg — user exited voluntarily")
+                handler.removeCallbacks(timerRunnable)
+                PausaAccessibilityService.endSession(packageName)
+                stopSelf()
+            }
+        }
+    }
 
     private val timerRunnable: Runnable = object : Runnable {
         override fun run() {
@@ -27,10 +55,17 @@ class PausaTimerService : Service() {
             }
 
             if (elapsed >= maxSeconds) {
-                Log.d("PausaTimer", "TIME UP — expelling $packageName")
-                handler.removeCallbacks(timerRunnable) // stop ticking
-                expelUser()
-                return // don't reschedule — expelUser handles stopSelf with delay
+                handler.removeCallbacks(timerRunnable)
+                Log.d("PausaTimer", "TIME UP for $packageName")
+                if (isBlockedAppInForeground()) {
+                    Log.d("PausaTimer", "App still in foreground — expelling")
+                    expelUser()
+                } else {
+                    Log.d("PausaTimer", "App not in foreground — stopping silently")
+                    PausaAccessibilityService.endSession(packageName)
+                    stopSelf()
+                }
+                return
             }
 
             handler.postDelayed(this, 1000)
@@ -84,6 +119,17 @@ class PausaTimerService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
         }
 
+        // Register broadcast receivers
+        try { unregisterReceiver(stopReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(stopAllReceiver) } catch (_: Exception) {}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(stopReceiver, IntentFilter("com.pausa.STOP_TIMER"), RECEIVER_NOT_EXPORTED)
+            registerReceiver(stopAllReceiver, IntentFilter("com.pausa.STOP_ALL_TIMERS"), RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(stopReceiver, IntentFilter("com.pausa.STOP_TIMER"))
+            registerReceiver(stopAllReceiver, IntentFilter("com.pausa.STOP_ALL_TIMERS"))
+        }
+
         // Cancel any existing runnable before starting fresh
         handler.removeCallbacks(timerRunnable)
         handler.post(timerRunnable)
@@ -132,12 +178,14 @@ class PausaTimerService : Service() {
         val seconds = remainingSeconds % 60
         val timeText = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("⏱ $appName — $timeText restantes")
+            .setContentTitle("⏱ $appName — $timeText")
             .setContentText("PAUSA activo")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
-            .setColor(Color.parseColor("#E24B4A"))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setShowWhen(false)
             .build()
     }
 
@@ -145,8 +193,14 @@ class PausaTimerService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID, "Pausa Timer",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Tiempo restante en apps pausadas" }
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                description = "Tiempo restante en apps pausadas"
+                setShowBadge(false)
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
+            }
             getSystemService(NotificationManager::class.java)
                 .createNotificationChannel(channel)
         }
@@ -154,8 +208,33 @@ class PausaTimerService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private fun isBlockedAppInForeground(): Boolean {
+        return try {
+            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val now = System.currentTimeMillis()
+            val events = usm.queryEvents(now - 5000, now)
+            val event = UsageEvents.Event()
+            var lastFg = ""
+            var lastBg = ""
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                when (event.eventType) {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND -> lastFg = event.packageName
+                    UsageEvents.Event.MOVE_TO_BACKGROUND -> lastBg = event.packageName
+                }
+            }
+            if (lastBg == packageName && lastFg != packageName) return false
+            if (lastFg.isNotEmpty()) return lastFg == packageName
+            true // no events in last 5 s — app is idle but still open
+        } catch (e: Exception) {
+            true // assume foreground if check fails — better to expel than not
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        try { unregisterReceiver(stopReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(stopAllReceiver) } catch (_: Exception) {}
         handler.removeCallbacks(timerRunnable)
         PausaAccessibilityService.endSession(packageName)
     }
