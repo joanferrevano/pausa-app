@@ -23,14 +23,11 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
-            // PAUSA itself came to foreground — stop any active timer
+            // PAUSA itself came to foreground — do NOT stop timer here.
+            // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll()
+            // so there is exactly one stop path and no race condition.
             if (current == applicationContext.packageName ||
                 current.startsWith("com.pausa.")) {
-                if (lastForegroundPackage.isNotEmpty() &&
-                    lastForegroundPackage in activeSessionApps) {
-                    sendStopTimer(lastForegroundPackage)
-                    endSession(lastForegroundPackage)
-                }
                 lastForegroundPackage = current
                 handler.postDelayed(this, 1000)
                 return
@@ -214,15 +211,10 @@ class PausaAccessibilityService : AccessibilityService() {
     }
 
     private fun handleAppChange(packageName: String) {
-        // Our own app came to foreground — stop any active timer (safety net;
-        // primary path is the poller, but belt-and-braces for accessibility events).
+        // Our own app came to foreground — do NOT stop timer here.
+        // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll().
         if (packageName == applicationContext.packageName ||
             packageName.startsWith("com.pausa.")) {
-            if (lastForegroundPackage.isNotEmpty() &&
-                lastForegroundPackage in activeSessionApps) {
-                sendStopTimer(lastForegroundPackage)
-                endSession(lastForegroundPackage)
-            }
             return
         }
         if (packageName.contains("pausa")) return

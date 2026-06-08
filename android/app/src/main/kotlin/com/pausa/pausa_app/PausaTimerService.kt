@@ -66,22 +66,20 @@ class PausaTimerService : Service() {
 
         /** Stop timer for a specific package — called by AccessibilityService on voluntary exit. */
         fun stopIfRunning(pkg: String) {
-            if (currentPackage == pkg && isRunning) {
-                Log.d("PausaTimer", "stopIfRunning: stopping timer for $pkg")
-                val svc = instance ?: return
-                svc.handler.removeCallbacks(svc.timerRunnable)
-                PausaAccessibilityService.endSession(pkg)
-                svc.stopSelf()
-            }
+            val inst = instance ?: return
+            // If the instance has a different non-empty package, don't stop it
+            if (inst.packageName.isNotEmpty() && inst.packageName != pkg) return
+            Log.d("PausaTimer", "stopIfRunning: stopping timer for $pkg")
+            inst.handler.removeCallbacks(inst.timerRunnable)
+            inst.stopSelf()
         }
 
         /** Stop all timers — called by MainActivity.onResume when PAUSA opens. */
         fun stopAll() {
-            Log.d("PausaTimer", "stopAll: stopping timer for $currentPackage")
-            val svc = instance ?: return
-            svc.handler.removeCallbacks(svc.timerRunnable)
-            PausaAccessibilityService.endSession(currentPackage)
-            svc.stopSelf()
+            val inst = instance ?: return
+            Log.d("PausaTimer", "stopAll: stopping timer for ${inst.packageName}")
+            inst.handler.removeCallbacks(inst.timerRunnable)
+            inst.stopSelf()
         }
     }
 
@@ -242,10 +240,11 @@ class PausaTimerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d("PausaTimer", "onDestroy for $packageName")
+        handler.removeCallbacks(timerRunnable)
+        PausaAccessibilityService.endSession(packageName)
         instance = null
         isRunning = false
         currentPackage = ""
-        handler.removeCallbacks(timerRunnable)
-        PausaAccessibilityService.endSession(packageName)
     }
 }
