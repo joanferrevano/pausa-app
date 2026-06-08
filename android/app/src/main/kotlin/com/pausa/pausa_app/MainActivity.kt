@@ -25,6 +25,14 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // Handles relaunches when launchMode="singleTop" brings the existing instance
+    // to the front (e.g. returning from accessibility settings). Flutter needs
+    // setIntent so plugins that inspect the intent see the latest one.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 

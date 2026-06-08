@@ -54,16 +54,16 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Interstitial Activity -->
+        <!-- Interstitial Activity — isolated in its own task so its back stack
+             never interferes with MainActivity or the blocked app's task. -->
         <activity
             android:name=".PausaInterstitialActivity"
             android:exported="false"
             android:theme="@style/LaunchTheme"
             android:excludeFromRecents="true"
-            android:noHistory="false"
-            android:taskAffinity=""
-            android:launchMode="singleInstance"
-            android:finishOnTaskLaunch="false" />
+            android:noHistory="true"
+            android:taskAffinity="com.pausa.pausa_app.interstitial"
+            android:launchMode="singleInstance" />
 
         <!-- Timer Service -->
         <service

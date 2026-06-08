@@ -50,10 +50,12 @@ class PausaInterstitialActivity : Activity() {
         waitSeconds = intent.getIntExtra("waitSeconds", 15)
         maxMinutes = intent.getIntExtra("maxMinutes", 20)
 
-        // Disable back gesture on Android 13+
+        // Disable back gesture on Android 13+.
+        // PRIORITY_DEFAULT (not PRIORITY_OVERLAY) — overlay priority bleeds into
+        // other activities in the same task and intercepts their back events too.
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT
             ) { /* do nothing */ }
         }
 
