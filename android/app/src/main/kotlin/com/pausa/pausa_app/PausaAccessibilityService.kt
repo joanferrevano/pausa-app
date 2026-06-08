@@ -210,9 +210,7 @@ class PausaAccessibilityService : AccessibilityService() {
     /** Tell the timer service to stop for a package the user voluntarily left. */
     private fun sendStopTimer(pkg: String) {
         if (pkg.isEmpty()) return
-        applicationContext.sendBroadcast(
-            Intent("com.pausa.STOP_TIMER").putExtra("packageName", pkg)
-        )
+        PausaTimerService.stopIfRunning(pkg)
     }
 
     private fun handleAppChange(packageName: String) {

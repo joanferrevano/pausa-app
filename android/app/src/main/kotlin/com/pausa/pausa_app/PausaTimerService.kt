@@ -3,51 +3,25 @@ package com.pausa.pausa_app
 import android.app.*
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.graphics.Color
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class PausaTimerService : Service() {
 
-    private val handler: Handler = Handler(Looper.getMainLooper())
+    val handler: Handler = Handler(Looper.getMainLooper())
     private var packageName: String = ""
     private var appName: String = ""
     private var maxSeconds: Int = 0
 
-    // Stops all timers when PAUSA app opens (MainActivity.onResume).
-    private val stopAllReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d("PausaTimer", "STOP_ALL — PAUSA opened, stopping timer for $packageName")
-            handler.removeCallbacks(timerRunnable)
-            PausaAccessibilityService.endSession(packageName)
-            stopSelf()
-        }
-    }
-
-    // Stops the timer when the AccessibilityService detects the user left voluntarily.
-    private val stopReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val pkg = intent?.getStringExtra("packageName") ?: return
-            if (pkg == packageName) {
-                Log.d("PausaTimer", "stop broadcast received for $pkg — user exited voluntarily")
-                handler.removeCallbacks(timerRunnable)
-                PausaAccessibilityService.endSession(packageName)
-                stopSelf()
-            }
-        }
-    }
-
-    private val timerRunnable: Runnable = object : Runnable {
+    val timerRunnable: Runnable = object : Runnable {
         override fun run() {
             val elapsed = elapsedSeconds()
             val remaining = maxSeconds - elapsed
 
-            Log.d("PausaTimer", "tick — elapsed: ${elapsed}s / max: ${maxSeconds}s / remaining: ${remaining}s / pkg: $packageName")
+            Log.d("PausaTimer", "tick — elapsed: ${elapsed}s / max: ${maxSeconds}s / pkg: $packageName")
 
             if (elapsed % 10 == 0) {
                 val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -55,7 +29,7 @@ class PausaTimerService : Service() {
             }
 
             if (elapsed >= maxSeconds) {
-                handler.removeCallbacks(timerRunnable)
+                handler.removeCallbacks(this)
                 Log.d("PausaTimer", "TIME UP for $packageName")
                 if (isBlockedAppInForeground()) {
                     Log.d("PausaTimer", "App still in foreground — expelling")
@@ -81,30 +55,80 @@ class PausaTimerService : Service() {
         private var savedAppName = ""
         private var savedMaxSeconds = 0
         private var savedStartTimeMs = 0L
+
+        // Singleton access for direct static calls (no broadcast needed)
+        private var instance: PausaTimerService? = null
+
+        var isRunning = false
+            private set
+        var currentPackage = ""
+            private set
+
+        /** Stop timer for a specific package — called by AccessibilityService on voluntary exit. */
+        fun stopIfRunning(pkg: String) {
+            if (currentPackage == pkg && isRunning) {
+                Log.d("PausaTimer", "stopIfRunning: stopping timer for $pkg")
+                val svc = instance ?: return
+                svc.handler.removeCallbacks(svc.timerRunnable)
+                PausaAccessibilityService.endSession(pkg)
+                svc.stopSelf()
+            }
+        }
+
+        /** Stop all timers — called by MainActivity.onResume when PAUSA opens. */
+        fun stopAll() {
+            Log.d("PausaTimer", "stopAll: stopping timer for $currentPackage")
+            val svc = instance ?: return
+            svc.handler.removeCallbacks(svc.timerRunnable)
+            PausaAccessibilityService.endSession(currentPackage)
+            svc.stopSelf()
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
-            // Fresh start — read params from intent and persist to static fields
-            packageName = intent.getStringExtra("packageName") ?: return START_NOT_STICKY
-            appName = intent.getStringExtra("appName") ?: packageName
+            val newPackage = intent.getStringExtra("packageName") ?: return START_NOT_STICKY
+
+            // Already running for same package — ignore duplicate start
+            if (isRunning && currentPackage == newPackage) {
+                Log.d("PausaTimer", "Already running for $newPackage — ignoring duplicate start")
+                return START_NOT_STICKY
+            }
+
+            // Running for different package — stop the previous timer cleanly
+            if (isRunning && currentPackage != newPackage) {
+                Log.d("PausaTimer", "Switching timer from $currentPackage to $newPackage")
+                handler.removeCallbacks(timerRunnable)
+                PausaAccessibilityService.endSession(currentPackage)
+            }
+
+            packageName = newPackage
+            appName = intent.getStringExtra("appName") ?: newPackage
             maxSeconds = intent.getIntExtra("maxMinutes", 20) * 60
             savedPackageName = packageName
             savedAppName = appName
             savedMaxSeconds = maxSeconds
             savedStartTimeMs = System.currentTimeMillis()
+            isRunning = true
+            currentPackage = packageName
             Log.d("PausaTimer", "started — pkg: $packageName / maxSeconds: $maxSeconds")
         } else {
-            // Android restarted after kill — restore from static fields
+            // Android restarted the service after kill — restore from static fields
             packageName = savedPackageName
             appName = savedAppName
             maxSeconds = savedMaxSeconds
-            // Keep savedStartTimeMs as-is — wall clock continues from original start
             if (packageName.isEmpty()) {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            Log.d("PausaTimer", "restarted by Android — pkg: $packageName / elapsed so far: ${elapsedSeconds()}s")
+            isRunning = true
+            currentPackage = packageName
+            Log.d("PausaTimer", "restarted by Android — pkg: $packageName / elapsed: ${elapsedSeconds()}s")
         }
 
         createNotificationChannel()
@@ -119,18 +143,6 @@ class PausaTimerService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
         }
 
-        // Register broadcast receivers
-        try { unregisterReceiver(stopReceiver) } catch (_: Exception) {}
-        try { unregisterReceiver(stopAllReceiver) } catch (_: Exception) {}
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(stopReceiver, IntentFilter("com.pausa.STOP_TIMER"), RECEIVER_NOT_EXPORTED)
-            registerReceiver(stopAllReceiver, IntentFilter("com.pausa.STOP_ALL_TIMERS"), RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(stopReceiver, IntentFilter("com.pausa.STOP_TIMER"))
-            registerReceiver(stopAllReceiver, IntentFilter("com.pausa.STOP_ALL_TIMERS"))
-        }
-
-        // Cancel any existing runnable before starting fresh
         handler.removeCallbacks(timerRunnable)
         handler.post(timerRunnable)
 
@@ -148,8 +160,6 @@ class PausaTimerService : Service() {
         Log.d("PausaTimer", "expelUser called for $packageName")
         PausaAccessibilityService.markExpelled(packageName)
 
-        // Resolve the actual launcher package so MIUI doesn't redirect to our
-        // MainActivity instead of the home screen when fired from a service.
         val baseHomeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -168,8 +178,7 @@ class PausaTimerService : Service() {
         Log.d("PausaTimer", "going home via: ${resolvedLauncher?.activityInfo?.packageName ?: "generic"}")
         startActivity(homeIntent)
 
-        // Stay alive for 10 s so the AccessibilityService isExpelling window has
-        // time to suppress all the transition events before the process settles.
+        // Stay alive for 10 s so the AccessibilityService isExpelling window has time to settle
         handler.postDelayed({ stopSelf() }, 10000)
     }
 
@@ -225,16 +234,17 @@ class PausaTimerService : Service() {
             }
             if (lastBg == packageName && lastFg != packageName) return false
             if (lastFg.isNotEmpty()) return lastFg == packageName
-            true // no events in last 5 s — app is idle but still open
+            true
         } catch (e: Exception) {
-            true // assume foreground if check fails — better to expel than not
+            true
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        try { unregisterReceiver(stopReceiver) } catch (_: Exception) {}
-        try { unregisterReceiver(stopAllReceiver) } catch (_: Exception) {}
+        instance = null
+        isRunning = false
+        currentPackage = ""
         handler.removeCallbacks(timerRunnable)
         PausaAccessibilityService.endSession(packageName)
     }

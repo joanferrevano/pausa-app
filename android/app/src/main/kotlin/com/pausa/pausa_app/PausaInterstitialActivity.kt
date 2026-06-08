@@ -181,15 +181,22 @@ class PausaInterstitialActivity : Activity() {
                 PausaAccessibilityService.startSession(packageName)
 
                 if (maxMinutes > 0) {
-                    val timerIntent = Intent(
-                        this@PausaInterstitialActivity,
-                        PausaTimerService::class.java
-                    ).apply {
-                        putExtra("packageName", packageName)
-                        putExtra("appName", appName)
-                        putExtra("maxMinutes", maxMinutes)
+                    // Only start a new timer if one isn't already running for this package.
+                    // Duplicate starts happen when the interstitial is shown multiple times
+                    // (e.g. task switcher → app again) before the first timer fires.
+                    val alreadyRunning = PausaTimerService.isRunning &&
+                        PausaTimerService.currentPackage == packageName
+                    if (!alreadyRunning) {
+                        val timerIntent = Intent(
+                            this@PausaInterstitialActivity,
+                            PausaTimerService::class.java
+                        ).apply {
+                            putExtra("packageName", packageName)
+                            putExtra("appName", appName)
+                            putExtra("maxMinutes", maxMinutes)
+                        }
+                        startService(timerIntent)
                     }
-                    startService(timerIntent)
                 }
                 finish()
             }

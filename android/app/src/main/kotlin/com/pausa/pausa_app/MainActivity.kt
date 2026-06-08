@@ -29,7 +29,7 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         // User opened PAUSA — stop any running blocked-app timer so the timer
         // doesn't expire and expel the user the next time they open that app.
-        sendBroadcast(Intent("com.pausa.STOP_ALL_TIMERS"))
+        PausaTimerService.stopAll()
     }
 
     // Handles relaunches when launchMode="singleTop" brings the existing instance
