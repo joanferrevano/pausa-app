@@ -32,6 +32,14 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
+            // Home or task switcher — handle and force-reset lastForegroundPackage so
+            // the next app open is always detected as a new event.
+            if (current in homeAndLauncherPackages || current in taskSwitcherPackages) {
+                handleAppChange(current)
+                lastForegroundPackage = ""
+                handler.postDelayed(this, 1000)
+                return
+            }
             if (current != lastForegroundPackage) {
                 handleAppChange(current)
                 lastForegroundPackage = current
@@ -229,7 +237,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 sendStopTimer(lastForegroundPackage)
                 endSession(lastForegroundPackage)
             }
-            lastForegroundPackage = ""
+            lastForegroundPackage = "" // ALWAYS reset so next app open is detected fresh
             return
         }
 
@@ -239,7 +247,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 sendStopTimer(lastForegroundPackage)
                 endSession(lastForegroundPackage)
             }
-            lastForegroundPackage = ""
+            lastForegroundPackage = "" // ALWAYS reset so next app open is detected fresh
             return
         }
 

@@ -237,6 +237,7 @@ class PausaInterstitialActivity : Activity() {
             PausaAccessibilityService.endSession(packageName)
             if (!isFinishing) finish()
         }
+        // If countdownCompleted — do NOT endSession, the timer service owns the session now
     }
 
     override fun onDestroy() {

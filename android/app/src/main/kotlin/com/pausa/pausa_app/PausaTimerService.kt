@@ -15,6 +15,7 @@ class PausaTimerService : Service() {
     private var packageName: String = ""
     private var appName: String = ""
     private var maxSeconds: Int = 0
+    private var isStopping = false
 
     val timerRunnable: Runnable = object : Runnable {
         override fun run() {
@@ -67,9 +68,10 @@ class PausaTimerService : Service() {
         /** Stop timer for a specific package — called by AccessibilityService on voluntary exit. */
         fun stopIfRunning(pkg: String) {
             val inst = instance ?: return
-            // If the instance has a different non-empty package, don't stop it
+            if (inst.isStopping) return // already in teardown
             if (inst.packageName.isNotEmpty() && inst.packageName != pkg) return
             Log.d("PausaTimer", "stopIfRunning: stopping timer for $pkg")
+            inst.isStopping = true
             inst.handler.removeCallbacks(inst.timerRunnable)
             inst.stopSelf()
         }
@@ -77,7 +79,9 @@ class PausaTimerService : Service() {
         /** Stop all timers — called by MainActivity.onResume when PAUSA opens. */
         fun stopAll() {
             val inst = instance ?: return
+            if (inst.isStopping) return // already in teardown
             Log.d("PausaTimer", "stopAll: stopping timer for ${inst.packageName}")
+            inst.isStopping = true
             inst.handler.removeCallbacks(inst.timerRunnable)
             inst.stopSelf()
         }
@@ -246,5 +250,6 @@ class PausaTimerService : Service() {
         instance = null
         isRunning = false
         currentPackage = ""
+        isStopping = false // reset for next instance
     }
 }
