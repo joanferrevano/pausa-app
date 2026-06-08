@@ -9,12 +9,12 @@ import androidx.core.app.NotificationCompat
 
 class PausaTimerService : Service() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var packageName = ""
-    private var appName = ""
-    private var maxSeconds = 0
+    private val handler: Handler = Handler(Looper.getMainLooper())
+    private var packageName: String = ""
+    private var appName: String = ""
+    private var maxSeconds: Int = 0
 
-    private val timerRunnable = object : Runnable {
+    private val timerRunnable: Runnable = object : Runnable {
         override fun run() {
             val elapsed = elapsedSeconds()
             val remaining = maxSeconds - elapsed
@@ -101,14 +101,30 @@ class PausaTimerService : Service() {
     private fun expelUser() {
         Log.d("PausaTimer", "expelUser called for $packageName")
         PausaAccessibilityService.markExpelled(packageName)
-        startActivity(Intent(Intent.ACTION_MAIN).apply {
+
+        // Resolve the actual launcher package so MIUI doesn't redirect to our
+        // MainActivity instead of the home screen when fired from a service.
+        val baseHomeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-        // Delay stopSelf so the service stays alive during the 3-second expulsion
-        // window, giving the AccessibilityService time to suppress transition events
-        // before our process activity settles.
-        handler.postDelayed({ stopSelf() }, 2000)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val resolvedLauncher = applicationContext.packageManager
+            .resolveActivity(baseHomeIntent, 0)
+        val homeIntent = if (resolvedLauncher != null) {
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                setPackage(resolvedLauncher.activityInfo.packageName)
+            }
+        } else {
+            baseHomeIntent
+        }
+        Log.d("PausaTimer", "going home via: ${resolvedLauncher?.activityInfo?.packageName ?: "generic"}")
+        startActivity(homeIntent)
+
+        // Stay alive for 10 s so the AccessibilityService isExpelling window has
+        // time to suppress all the transition events before the process settles.
+        handler.postDelayed({ stopSelf() }, 10000)
     }
 
     private fun buildNotification(remainingSeconds: Int): Notification {

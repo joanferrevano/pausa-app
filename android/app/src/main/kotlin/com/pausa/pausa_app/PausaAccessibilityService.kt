@@ -51,9 +51,9 @@ class PausaAccessibilityService : AccessibilityService() {
         fun markExpelled(packageName: String) {
             isExpelling = true
             activeSessionApps.remove(packageName)
-            expelledApps[packageName] = System.currentTimeMillis() + 8000L
-            // Reset global expulsion guard after 3 seconds
-            Handler(Looper.getMainLooper()).postDelayed({ isExpelling = false }, 3000)
+            expelledApps[packageName] = System.currentTimeMillis() + 10000L
+            // Reset global expulsion guard after 10 seconds — matches expelled window
+            Handler(Looper.getMainLooper()).postDelayed({ isExpelling = false }, 10000)
         }
 
         fun isInActiveSession(packageName: String): Boolean =
@@ -197,8 +197,9 @@ class PausaAccessibilityService : AccessibilityService() {
         // Hard guard — never process our own app under any circumstances
         if (packageName == applicationContext.packageName) return
         if (packageName.startsWith("com.pausa.")) return
+        if (packageName.contains("pausa")) return
 
-        // Global expulsion guard — ignore all events for 3 seconds after any expulsion
+        // Global expulsion guard — ignore all events for 10 seconds after any expulsion
         // to prevent the crash loop caused by our MainActivity coming to foreground
         if (isExpelling) return
 
@@ -253,6 +254,7 @@ class PausaAccessibilityService : AccessibilityService() {
             putExtra("appName", pausaConfig.first)
             putExtra("waitSeconds", pausaConfig.second)
             putExtra("maxMinutes", pausaConfig.third)
+            putExtra("userInitiated", true) // marks a legitimate service intercept
         })
     }
 

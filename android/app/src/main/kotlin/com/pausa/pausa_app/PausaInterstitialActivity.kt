@@ -27,7 +27,25 @@ class PausaInterstitialActivity : Activity() {
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        packageName = intent.getStringExtra("packageName") ?: run { finish(); return }
+        val pkg = intent.getStringExtra("packageName") ?: run { finish(); return }
+        val isUserInitiated = intent.getBooleanExtra("userInitiated", false)
+
+        // Reject any launch that wasn't explicitly fired by the AccessibilityService.
+        // This kills the expulsion loop — MIUI sometimes bounces back through our
+        // MainActivity and re-triggers the interstitial with no userInitiated flag.
+        if (!isUserInitiated) {
+            finish()
+            return
+        }
+
+        // Also reject if the package is currently in the expelled window
+        // (second safety net — belt and braces).
+        if (PausaAccessibilityService.isExpelled(pkg)) {
+            finish()
+            return
+        }
+
+        packageName = pkg
         appName = intent.getStringExtra("appName") ?: packageName
         waitSeconds = intent.getIntExtra("waitSeconds", 15)
         maxMinutes = intent.getIntExtra("maxMinutes", 20)
