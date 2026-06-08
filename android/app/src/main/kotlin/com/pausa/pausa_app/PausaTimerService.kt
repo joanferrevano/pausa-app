@@ -28,8 +28,9 @@ class PausaTimerService : Service() {
 
             if (elapsed >= maxSeconds) {
                 Log.d("PausaTimer", "TIME UP — expelling $packageName")
+                handler.removeCallbacks(timerRunnable) // stop ticking
                 expelUser()
-                return // don't reschedule
+                return // don't reschedule — expelUser handles stopSelf with delay
             }
 
             handler.postDelayed(this, 1000)
@@ -104,7 +105,10 @@ class PausaTimerService : Service() {
             addCategory(Intent.CATEGORY_HOME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
-        stopSelf()
+        // Delay stopSelf so the service stays alive during the 3-second expulsion
+        // window, giving the AccessibilityService time to suppress transition events
+        // before our process activity settles.
+        handler.postDelayed({ stopSelf() }, 2000)
     }
 
     private fun buildNotification(remainingSeconds: Int): Notification {

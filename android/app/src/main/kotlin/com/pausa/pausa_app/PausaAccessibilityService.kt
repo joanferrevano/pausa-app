@@ -23,7 +23,10 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
-            if (current != lastForegroundPackage) {
+            // Skip our own app and any active expulsion window
+            if (!current.startsWith("com.pausa.") &&
+                current != applicationContext.packageName &&
+                current != lastForegroundPackage) {
                 handleAppChange(current)
                 lastForegroundPackage = current
             }
@@ -46,8 +49,11 @@ class PausaAccessibilityService : AccessibilityService() {
         }
 
         fun markExpelled(packageName: String) {
+            isExpelling = true
             activeSessionApps.remove(packageName)
             expelledApps[packageName] = System.currentTimeMillis() + 8000L
+            // Reset global expulsion guard after 3 seconds
+            Handler(Looper.getMainLooper()).postDelayed({ isExpelling = false }, 3000)
         }
 
         fun isInActiveSession(packageName: String): Boolean =
@@ -66,7 +72,13 @@ class PausaAccessibilityService : AccessibilityService() {
         fun clearAll() {
             activeSessionApps.clear()
             expelledApps.clear()
+            isExpelling = false
         }
+
+        // True for 3 seconds after any expulsion — blocks all intercepts globally
+        // to prevent the crash loop caused by our own app coming to foreground.
+        var isExpelling = false
+            private set
     }
 
     private val ignoredPackages = setOf(
@@ -161,7 +173,10 @@ class PausaAccessibilityService : AccessibilityService() {
             event?.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED) return
 
         val packageName = event?.packageName?.toString() ?: return
-        if (packageName == lastForegroundPackage) return // already handled by poller or previous event
+        // Never process events from our own app
+        if (packageName == applicationContext.packageName) return
+        if (packageName.startsWith("com.pausa.")) return
+        if (packageName == lastForegroundPackage) return // already handled
 
         handleAppChange(packageName)
         lastForegroundPackage = packageName
@@ -179,6 +194,14 @@ class PausaAccessibilityService : AccessibilityService() {
     // ── Core logic — shared by onAccessibilityEvent and foregroundPoller ─────
 
     private fun handleAppChange(packageName: String) {
+        // Hard guard — never process our own app under any circumstances
+        if (packageName == applicationContext.packageName) return
+        if (packageName.startsWith("com.pausa.")) return
+
+        // Global expulsion guard — ignore all events for 3 seconds after any expulsion
+        // to prevent the crash loop caused by our MainActivity coming to foreground
+        if (isExpelling) return
+
         // Home / launcher came to foreground — end active session
         if (packageName in homeAndLauncherPackages) {
             if (lastForegroundPackage in activeSessionApps) {
