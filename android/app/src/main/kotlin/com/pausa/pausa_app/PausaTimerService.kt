@@ -4,24 +4,43 @@ import android.app.*
 import android.content.Intent
 import android.graphics.Color
 import android.os.*
+import android.util.Log
 import androidx.core.app.NotificationCompat
-import java.util.Timer
-import java.util.TimerTask
 
 class PausaTimerService : Service() {
 
-    private var timer: Timer? = null
+    private val handler = Handler(Looper.getMainLooper())
     private var packageName = ""
     private var appName = ""
     private var maxSeconds = 0
-    private var startTimeMs = 0L
+
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            val elapsed = elapsedSeconds()
+            val remaining = maxSeconds - elapsed
+
+            Log.d("PausaTimer", "tick — elapsed: ${elapsed}s / max: ${maxSeconds}s / remaining: ${remaining}s / pkg: $packageName")
+
+            if (elapsed % 10 == 0) {
+                val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                nm.notify(NOTIFICATION_ID, buildNotification(remaining.coerceAtLeast(0)))
+            }
+
+            if (elapsed >= maxSeconds) {
+                Log.d("PausaTimer", "TIME UP — expelling $packageName")
+                expelUser()
+                return // don't reschedule
+            }
+
+            handler.postDelayed(this, 1000)
+        }
+    }
 
     companion object {
         const val CHANNEL_ID = "pausa_timer_channel"
         const val NOTIFICATION_ID = 1001
 
-        // Static rescue fields — survive process kill + START_STICKY restart
-        // where onStartCommand receives a null intent.
+        // Static fields survive process kill + START_STICKY restart
         private var savedPackageName = ""
         private var savedAppName = ""
         private var savedMaxSeconds = 0
@@ -30,24 +49,26 @@ class PausaTimerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
-            // Fresh start — read params from intent and persist to static fields.
+            // Fresh start — read params from intent and persist to static fields
             packageName = intent.getStringExtra("packageName") ?: return START_NOT_STICKY
             appName = intent.getStringExtra("appName") ?: packageName
             maxSeconds = intent.getIntExtra("maxMinutes", 20) * 60
-            startTimeMs = System.currentTimeMillis()
-
             savedPackageName = packageName
             savedAppName = appName
             savedMaxSeconds = maxSeconds
-            savedStartTimeMs = startTimeMs
+            savedStartTimeMs = System.currentTimeMillis()
+            Log.d("PausaTimer", "started — pkg: $packageName / maxSeconds: $maxSeconds")
         } else {
-            // Android restarted the service after killing it (START_STICKY).
-            // Restore from static fields; if nothing was saved, stop gracefully.
-            if (savedPackageName.isEmpty()) return START_NOT_STICKY
+            // Android restarted after kill — restore from static fields
             packageName = savedPackageName
             appName = savedAppName
             maxSeconds = savedMaxSeconds
-            startTimeMs = savedStartTimeMs
+            // Keep savedStartTimeMs as-is — wall clock continues from original start
+            if (packageName.isEmpty()) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            Log.d("PausaTimer", "restarted by Android — pkg: $packageName / elapsed so far: ${elapsedSeconds()}s")
         }
 
         createNotificationChannel()
@@ -62,45 +83,28 @@ class PausaTimerService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
         }
 
-        timer?.cancel()
-        timer = Timer()
-        timer?.scheduleAtFixedRate(object : TimerTask() {
-            override fun run() {
-                val elapsed = elapsedSeconds()
-                val remaining = maxSeconds - elapsed
-
-                // Update notification every 10 seconds to reduce overhead
-                if (elapsed % 10 == 0) {
-                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                    nm.notify(NOTIFICATION_ID, buildNotification(remaining.coerceAtLeast(0)))
-                }
-
-                // Time is up — expel unconditionally
-                if (elapsed >= maxSeconds) {
-                    timer?.cancel()
-                    expelUser()
-                    stopSelf()
-                }
-            }
-        }, 1000, 1000)
+        // Cancel any existing runnable before starting fresh
+        handler.removeCallbacks(timerRunnable)
+        handler.post(timerRunnable)
 
         return START_STICKY
     }
 
     /** Wall-clock elapsed seconds — accurate across kill/restart cycles. */
-    private fun elapsedSeconds(): Int =
-        ((System.currentTimeMillis() - startTimeMs) / 1000).toInt()
+    private fun elapsedSeconds(): Int {
+        val start = savedStartTimeMs
+        if (start == 0L) return 0
+        return ((System.currentTimeMillis() - start) / 1000).toInt()
+    }
 
     private fun expelUser() {
+        Log.d("PausaTimer", "expelUser called for $packageName")
         PausaAccessibilityService.markExpelled(packageName)
-        // Small delay ensures markExpelled is processed before Android fires
-        // the window-change events triggered by the home intent.
-        Handler(Looper.getMainLooper()).postDelayed({
-            startActivity(Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_HOME)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        }, 200)
+        startActivity(Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+        stopSelf()
     }
 
     private fun buildNotification(remainingSeconds: Int): Notification {
@@ -132,7 +136,7 @@ class PausaTimerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        timer?.cancel()
+        handler.removeCallbacks(timerRunnable)
         PausaAccessibilityService.endSession(packageName)
     }
 }
