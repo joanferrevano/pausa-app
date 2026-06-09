@@ -57,6 +57,18 @@ class PausaInterstitialActivity : Activity() {
             return
         }
 
+        // Daily cooldown — if the user was expelled today, block for the rest of the day.
+        // Resets automatically at midnight via date comparison (no explicit reset needed).
+        if (PausaAccessibilityService.isInDailyCooldown(pkg)) {
+            Log.d("PausaDebug", "PausaInterstitialActivity — daily cooldown active for $pkg, sending home")
+            startActivity(Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            })
+            finish()
+            return
+        }
+
         packageName = pkg
         appName = intent.getStringExtra("appName") ?: packageName
         waitSeconds = intent.getIntExtra("waitSeconds", 15)

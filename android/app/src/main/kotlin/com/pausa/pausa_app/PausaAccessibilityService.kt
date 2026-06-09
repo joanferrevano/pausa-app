@@ -74,10 +74,10 @@ class PausaAccessibilityService : AccessibilityService() {
                 }
                 if (current == pkg) {
                     iter.remove()
-                    Log.d("PausaDebug", "PENDING intercept for $pkg — wasRecentlyExpelled: ${wasRecentlyExpelled(pkg)}")
-                    if (wasRecentlyExpelled(pkg)) {
-                        // Still in expulsion window — send straight home
-                        Log.d("PausaDebug", "PENDING intercept blocked (wasRecentlyExpelled) — sending home for $pkg")
+                    Log.d("PausaDebug", "PENDING intercept for $pkg — wasRecentlyExpelled: ${wasRecentlyExpelled(pkg)} / isInDailyCooldown: ${isInDailyCooldown(pkg)}")
+                    if (wasRecentlyExpelled(pkg) || isInDailyCooldown(pkg)) {
+                        // Still in expulsion/cooldown window — send straight home
+                        Log.d("PausaDebug", "PENDING intercept blocked — daily cooldown active for $pkg")
                         startActivity(Intent(Intent.ACTION_MAIN).apply {
                             addCategory(Intent.CATEGORY_HOME)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -159,11 +159,19 @@ class PausaAccessibilityService : AccessibilityService() {
             lastExpelledTimeMs = System.currentTimeMillis()
             Log.d("PausaDebug", "markExpelled called for $packageName — setting lastExpelledTimeMs=$lastExpelledTimeMs")
             // Persist so it survives process restart (MIUI kills and restarts the process)
-            appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
-                ?.edit()
-                ?.putString("last_expelled_pkg", packageName)
-                ?.putLong("last_expelled_ms", lastExpelledTimeMs)
-                ?.apply()
+            if (appContext == null) {
+                Log.e("PausaDebug", "markExpelled — appContext is NULL, cannot persist expelled state!")
+            } else {
+                val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+                    .format(java.util.Date())
+                appContext!!.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("last_expelled_pkg", packageName)
+                    .putLong("last_expelled_ms", lastExpelledTimeMs)
+                    .putString("expelled_day_$packageName", today)
+                    .apply()
+                Log.d("PausaDebug", "markExpelled — persisted to prefs OK, stored expulsion day: $today for $packageName")
+            }
             activeSessionApps.remove(packageName)
             expelledApps[packageName] = System.currentTimeMillis() + 30000L // 30s window
             pendingIntercepts.remove(packageName)
@@ -203,14 +211,33 @@ class PausaAccessibilityService : AccessibilityService() {
             return result
         }
 
+        fun isInDailyCooldown(packageName: String): Boolean {
+            val prefs = appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                ?: return false
+            val expelledDay = prefs.getString("expelled_day_$packageName", "") ?: ""
+            if (expelledDay.isEmpty()) return false
+            val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            val result = expelledDay == today
+            Log.d("PausaDebug", "isInDailyCooldown($packageName) — expelledDay=$expelledDay today=$today result=$result")
+            return result
+        }
+
         // Call from onServiceConnected to wipe stale state after a service restart.
-        // NOTE: does NOT clear lastExpelledPackage/Ms or their prefs — those are restored
-        // from prefs before clearAll is called and must survive to block re-entry.
+        // IMPORTANT: does NOT touch lastExpelledPackage/Ms or their SharedPreferences keys —
+        // those are restored from prefs before clearAll is called and must survive to block
+        // re-entry after MIUI kills and restarts the process.
         fun clearAll() {
             activeSessionApps.clear()
             expelledApps.clear()
             pendingIntercepts.clear()
             isExpelling = false
+            val ctx = appContext
+            val preservedPkg = ctx?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                ?.getString("last_expelled_pkg", "") ?: "(no ctx)"
+            val preservedMs = ctx?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                ?.getLong("last_expelled_ms", 0L) ?: -1L
+            Log.d("PausaDebug", "clearAll — preserving expelled prefs: pkg=$preservedPkg ms=$preservedMs")
         }
 
         // True for 10 seconds after any expulsion — blocks all intercepts globally
@@ -300,17 +327,22 @@ class PausaAccessibilityService : AccessibilityService() {
     )
 
     override fun onServiceConnected() {
-        // Store context so companion functions can reach SharedPreferences.
-        // Must be set BEFORE clearAll() or any companion call that uses appContext.
+        // ── Step 1: context — MUST be absolute first line so every companion
+        //            function that calls getSharedPreferences has a valid context.
         appContext = applicationContext
 
-        // Restore persisted expulsion state — in-memory companion vars reset on
-        // process restart (MIUI kills and restarts the accessibility service process).
+        // ── Step 2: restore expelled state from prefs BEFORE clearAll() so the
+        //            in-memory values are populated when clearAll's log reads them.
+        //            MIUI kills and restarts the process after expulsion, resetting
+        //            all companion-object vars to their default values.
         val prefs = getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
         lastExpelledPackage = prefs.getString("last_expelled_pkg", "") ?: ""
         lastExpelledTimeMs = prefs.getLong("last_expelled_ms", 0L)
-        Log.d("PausaDebug", "onServiceConnected — restored lastExpelledPkg=$lastExpelledPackage lastExpelledMs=$lastExpelledTimeMs")
+        val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        Log.d("PausaDebug", "onServiceConnected — today=$today restored lastExpelledPkg=$lastExpelledPackage lastExpelledMs=$lastExpelledTimeMs")
 
+        // ── Step 3: clear session state (but NOT expelled prefs — see clearAll()).
         // Only clear state if no timer is running. If a session is active (user is inside
         // a blocked app with the timer counting down), preserve it — clearAll would
         // wipe activeSessionApps and cause the next app event to re-intercept.
