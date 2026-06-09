@@ -211,6 +211,25 @@ class PausaAccessibilityService : AccessibilityService() {
             return result
         }
 
+        fun resetDailyCooldown(packageName: String) {
+            appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                ?.edit()
+                ?.remove("expelled_day_$packageName")
+                ?.apply()
+            // Also clear the expelled state so the user can enter immediately
+            expelledApps.remove(packageName)
+            if (lastExpelledPackage == packageName) {
+                lastExpelledPackage = ""
+                lastExpelledTimeMs = 0L
+                appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                    ?.edit()
+                    ?.remove("last_expelled_pkg")
+                    ?.remove("last_expelled_ms")
+                    ?.apply()
+            }
+            Log.d("PausaDebug", "resetDailyCooldown — cooldown cleared for $packageName")
+        }
+
         fun isInDailyCooldown(packageName: String): Boolean {
             val prefs = appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
                 ?: return false

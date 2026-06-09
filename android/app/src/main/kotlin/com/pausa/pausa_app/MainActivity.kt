@@ -143,6 +143,15 @@ class MainActivity : FlutterActivity() {
                         prefs.edit().putString("pausas_list", json).apply()
                         result.success(null)
                     }
+                    "isInDailyCooldown" -> {
+                        val pkg = call.argument<String>("packageName") ?: ""
+                        result.success(PausaAccessibilityService.isInDailyCooldown(pkg))
+                    }
+                    "resetDailyCooldown" -> {
+                        val pkg = call.argument<String>("packageName") ?: ""
+                        PausaAccessibilityService.resetDailyCooldown(pkg)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -163,6 +163,32 @@ class PausaTimerService : Service() {
         Log.d("PausaTimer", "expelUser called for $packageName")
         PausaAccessibilityService.markExpelled(packageName)
 
+        // ── Expulsion notification ────────────────────────────────────────────
+        val expulsionChannelId = "pausa_expulsion"
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                expulsionChannelId,
+                "Pausa",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            nm.createNotificationChannel(channel)
+        }
+        val displayName = try {
+            packageManager.getApplicationLabel(
+                packageManager.getApplicationInfo(packageName, 0)
+            ).toString()
+        } catch (e: Exception) { appName }
+        val expulsionNotification = NotificationCompat.Builder(this, expulsionChannelId)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setContentTitle("Tiempo agotado")
+            .setContentText("Has usado $displayName por hoy. Vuelve mañana.")
+            .setAutoCancel(true)
+            .build()
+        nm.notify(packageName.hashCode(), expulsionNotification)
+        Log.d("PausaTimer", "expulsion notification shown for $displayName")
+        // ─────────────────────────────────────────────────────────────────────
+
         val baseHomeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

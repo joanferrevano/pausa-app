@@ -19,6 +19,24 @@ class AccessibilityService {
     } catch (_) {}
   }
 
+  static Future<bool> isInDailyCooldown(String packageName) async {
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'isInDailyCooldown',
+        {'packageName': packageName},
+      );
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> resetDailyCooldown(String packageName) async {
+    try {
+      await _channel.invokeMethod('resetDailyCooldown', {'packageName': packageName});
+    } catch (_) {}
+  }
+
   static Future<void> syncPausas(List<Map<String, dynamic>> pausas) async {
     try {
       await _channel.invokeMethod('syncPausas', {'pausas': pausas});
