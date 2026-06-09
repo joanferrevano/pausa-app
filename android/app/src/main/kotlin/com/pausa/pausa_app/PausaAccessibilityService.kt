@@ -74,6 +74,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 }
                 if (current == pkg) {
                     iter.remove()
+                    Log.d("PausaDebug", "PENDING intercept for $pkg — wasRecentlyExpelled: ${wasRecentlyExpelled(pkg)}")
                     if (wasRecentlyExpelled(pkg)) {
                         // Still in expulsion window — send straight home
                         Log.d("PausaDebug", "PENDING intercept blocked (wasRecentlyExpelled) — sending home for $pkg")
@@ -123,11 +124,27 @@ class PausaAccessibilityService : AccessibilityService() {
         var lastExpelledPackage: String = ""
         var lastExpelledTimeMs: Long = 0L
 
+        // Application context stored on service connect so companion functions can
+        // reach SharedPreferences without requiring a Context parameter.
+        // Set before any companion function that uses it is called.
+        private var appContext: Context? = null
+
         fun startSession(packageName: String) {
             activeSessionApps.add(packageName)
             expelledApps.remove(packageName)
             pendingIntercepts.remove(packageName) // no longer needs intercepting
             activeTimerPackage = packageName
+            // Clear persisted expulsion for this package — the user completed the countdown
+            // and is legitimately entering the app, so expulsion state is no longer relevant.
+            if (lastExpelledPackage == packageName) {
+                lastExpelledPackage = ""
+                lastExpelledTimeMs = 0L
+                appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                    ?.edit()
+                    ?.remove("last_expelled_pkg")
+                    ?.remove("last_expelled_ms")
+                    ?.apply()
+            }
         }
 
         fun endSession(packageName: String) {
@@ -140,6 +157,13 @@ class PausaAccessibilityService : AccessibilityService() {
             isExpelling = true
             lastExpelledPackage = packageName
             lastExpelledTimeMs = System.currentTimeMillis()
+            Log.d("PausaDebug", "markExpelled called for $packageName — setting lastExpelledTimeMs=$lastExpelledTimeMs")
+            // Persist so it survives process restart (MIUI kills and restarts the process)
+            appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putString("last_expelled_pkg", packageName)
+                ?.putLong("last_expelled_ms", lastExpelledTimeMs)
+                ?.apply()
             activeSessionApps.remove(packageName)
             expelledApps[packageName] = System.currentTimeMillis() + 30000L // 30s window
             pendingIntercepts.remove(packageName)
@@ -161,18 +185,32 @@ class PausaAccessibilityService : AccessibilityService() {
         }
 
         fun wasRecentlyExpelled(packageName: String): Boolean {
-            if (lastExpelledPackage != packageName) return false
-            return System.currentTimeMillis() - lastExpelledTimeMs < 30000L
+            // Prefer in-memory values; fall back to SharedPreferences if in-memory was reset
+            // by a process restart (MIUI kills and restarts the accessibility service process).
+            val ctx = appContext
+            val savedPkg = if (lastExpelledPackage.isEmpty() && ctx != null)
+                ctx.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                    .getString("last_expelled_pkg", "") ?: ""
+            else lastExpelledPackage
+            val savedMs = if (lastExpelledTimeMs == 0L && ctx != null)
+                ctx.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+                    .getLong("last_expelled_ms", 0L)
+            else lastExpelledTimeMs
+            if (savedPkg != packageName) return false
+            val diff = System.currentTimeMillis() - savedMs
+            val result = diff < 30000L
+            Log.d("PausaDebug", "wasRecentlyExpelled($packageName) — savedPkg=$savedPkg savedMs=$savedMs diff=${diff}ms result=$result")
+            return result
         }
 
         // Call from onServiceConnected to wipe stale state after a service restart.
+        // NOTE: does NOT clear lastExpelledPackage/Ms or their prefs — those are restored
+        // from prefs before clearAll is called and must survive to block re-entry.
         fun clearAll() {
             activeSessionApps.clear()
             expelledApps.clear()
             pendingIntercepts.clear()
             isExpelling = false
-            lastExpelledPackage = ""
-            lastExpelledTimeMs = 0L
         }
 
         // True for 10 seconds after any expulsion — blocks all intercepts globally
@@ -262,6 +300,17 @@ class PausaAccessibilityService : AccessibilityService() {
     )
 
     override fun onServiceConnected() {
+        // Store context so companion functions can reach SharedPreferences.
+        // Must be set BEFORE clearAll() or any companion call that uses appContext.
+        appContext = applicationContext
+
+        // Restore persisted expulsion state — in-memory companion vars reset on
+        // process restart (MIUI kills and restarts the accessibility service process).
+        val prefs = getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
+        lastExpelledPackage = prefs.getString("last_expelled_pkg", "") ?: ""
+        lastExpelledTimeMs = prefs.getLong("last_expelled_ms", 0L)
+        Log.d("PausaDebug", "onServiceConnected — restored lastExpelledPkg=$lastExpelledPackage lastExpelledMs=$lastExpelledTimeMs")
+
         // Only clear state if no timer is running. If a session is active (user is inside
         // a blocked app with the timer counting down), preserve it — clearAll would
         // wipe activeSessionApps and cause the next app event to re-intercept.
@@ -347,17 +396,26 @@ class PausaAccessibilityService : AccessibilityService() {
         }
 
         // Home / launcher came to foreground — end active session.
-        // If lastForegroundPackage is PAUSA itself (interstitial was showing), fall back
-        // to the real active session — back-nav from the interstitial still ends the session.
+        // If lastForegroundPackage is PAUSA itself (interstitial was showing), use
+        // activeTimerPackage (the package that owns the running timer) as the real session.
+        // Falls back to activeSessionApps.firstOrNull() when no timer is running (countdown
+        // not yet finished), and to lastForegroundPackage as final fallback.
         if (packageName in homeAndLauncherPackages) {
-            val sessionToEnd = if (lastForegroundPackage == applicationContext.packageName ||
-                lastForegroundPackage.startsWith("com.pausa.")) {
-                activeSessionApps.firstOrNull() ?: lastForegroundPackage
-            } else {
-                lastForegroundPackage
+            val sessionToEnd = when {
+                lastForegroundPackage == applicationContext.packageName ||
+                lastForegroundPackage.startsWith("com.pausa.") -> {
+                    // PAUSA was in foreground (interstitial) — use the active timer package
+                    PausaTimerService.currentPackage.takeIf { it.isNotEmpty() }
+                        ?: activeSessionApps.firstOrNull()
+                        ?: lastForegroundPackage
+                }
+                lastForegroundPackage.isNotEmpty() && lastForegroundPackage != "__reset__" ->
+                    lastForegroundPackage
+                else ->
+                    activeSessionApps.firstOrNull() ?: ""
             }
             Log.d("PausaDebug", "GUARD home-launcher — ending session for $sessionToEnd (last=$lastForegroundPackage)")
-            if (sessionToEnd in activeSessionApps) {
+            if (sessionToEnd.isNotEmpty() && sessionToEnd in activeSessionApps) {
                 sendStopTimer(sessionToEnd)
                 endSession(sessionToEnd)
             }

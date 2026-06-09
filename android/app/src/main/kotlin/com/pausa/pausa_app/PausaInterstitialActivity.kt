@@ -2,6 +2,7 @@ package com.pausa.pausa_app
 
 import android.app.Activity
 import android.content.Intent
+import android.util.Log
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -29,6 +30,12 @@ class PausaInterstitialActivity : Activity() {
 
         val pkg = intent.getStringExtra("packageName") ?: run { finish(); return }
         val isUserInitiated = intent.getBooleanExtra("userInitiated", false)
+
+        Log.d("PausaDebug", "PausaInterstitialActivity onCreate — pkg: $pkg" +
+            " / wasRecentlyExpelled: ${PausaAccessibilityService.wasRecentlyExpelled(pkg)}" +
+            " / lastExpelledPkg: ${PausaAccessibilityService.lastExpelledPackage}" +
+            " / lastExpelledMs: ${PausaAccessibilityService.lastExpelledTimeMs}" +
+            " / now: ${System.currentTimeMillis()}")
 
         // Reject any launch that wasn't explicitly fired by the AccessibilityService.
         // This kills the expulsion loop — MIUI sometimes bounces back through our
