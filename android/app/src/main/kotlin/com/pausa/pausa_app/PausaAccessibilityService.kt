@@ -22,6 +22,11 @@ class PausaAccessibilityService : AccessibilityService() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_SCREEN_ON) {
                 Log.d("PausaDebug", "pantalla encendida — reiniciando poller")
+                // Sentinel forces the next poller tick to evaluate whatever app is in
+                // foreground, even if it was already there before the screen turned off.
+                // If the timer expired while the screen was off, the app will have no
+                // active session and pendingIntercepts will re-trigger the countdown.
+                lastForegroundPackage = "__reset__"
                 handler.removeCallbacks(foregroundPoller)
                 handler.postDelayed(foregroundPoller, 500)
             }
@@ -69,9 +74,17 @@ class PausaAccessibilityService : AccessibilityService() {
                 }
                 if (current == pkg) {
                     iter.remove()
-                    if (!isInActiveSession(pkg) && !isExpelled(pkg) && !isExpelling) {
+                    if (wasRecentlyExpelled(pkg)) {
+                        // Still in expulsion window — send straight home
+                        Log.d("PausaDebug", "PENDING intercept blocked (wasRecentlyExpelled) — sending home for $pkg")
+                        startActivity(Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                    } else if (!isInActiveSession(pkg) && !isExpelled(pkg) && !isExpelling) {
                         val pausaConfig = getPausaForPackage(pkg) ?: continue
                         Log.d("PausaDebug", "PENDING intercept firing for $pkg")
+                        lastForegroundPackage = pkg
                         startActivity(Intent(this@PausaAccessibilityService,
                             PausaInterstitialActivity::class.java).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -105,6 +118,11 @@ class PausaAccessibilityService : AccessibilityService() {
         // Package currently being timed — used to cancel the timer on voluntary exit.
         var activeTimerPackage: String = ""
 
+        // Tracks the last expelled package with a timestamp — survives beyond the
+        // expelledApps window (which only gates the poller) to also gate the interstitial.
+        var lastExpelledPackage: String = ""
+        var lastExpelledTimeMs: Long = 0L
+
         fun startSession(packageName: String) {
             activeSessionApps.add(packageName)
             expelledApps.remove(packageName)
@@ -120,10 +138,13 @@ class PausaAccessibilityService : AccessibilityService() {
 
         fun markExpelled(packageName: String) {
             isExpelling = true
+            lastExpelledPackage = packageName
+            lastExpelledTimeMs = System.currentTimeMillis()
             activeSessionApps.remove(packageName)
-            expelledApps[packageName] = System.currentTimeMillis() + 10000L
+            expelledApps[packageName] = System.currentTimeMillis() + 30000L // 30s window
             pendingIntercepts.remove(packageName)
-            // Reset global expulsion guard after 10 seconds — matches expelled window
+            // Reset global expulsion guard after 10 seconds — only affects isExpelling,
+            // not expelledApps (which runs for 30s) or wasRecentlyExpelled (30s).
             Handler(Looper.getMainLooper()).postDelayed({ isExpelling = false }, 10000)
         }
 
@@ -139,12 +160,19 @@ class PausaAccessibilityService : AccessibilityService() {
             return true
         }
 
+        fun wasRecentlyExpelled(packageName: String): Boolean {
+            if (lastExpelledPackage != packageName) return false
+            return System.currentTimeMillis() - lastExpelledTimeMs < 30000L
+        }
+
         // Call from onServiceConnected to wipe stale state after a service restart.
         fun clearAll() {
             activeSessionApps.clear()
             expelledApps.clear()
             pendingIntercepts.clear()
             isExpelling = false
+            lastExpelledPackage = ""
+            lastExpelledTimeMs = 0L
         }
 
         // True for 10 seconds after any expulsion — blocks all intercepts globally
@@ -318,12 +346,20 @@ class PausaAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Home / launcher came to foreground — end active session
+        // Home / launcher came to foreground — end active session.
+        // If lastForegroundPackage is PAUSA itself (interstitial was showing), fall back
+        // to the real active session — back-nav from the interstitial still ends the session.
         if (packageName in homeAndLauncherPackages) {
-            Log.d("PausaDebug", "GUARD home-launcher — ending session for $lastForegroundPackage")
-            if (lastForegroundPackage in activeSessionApps) {
-                sendStopTimer(lastForegroundPackage)
-                endSession(lastForegroundPackage)
+            val sessionToEnd = if (lastForegroundPackage == applicationContext.packageName ||
+                lastForegroundPackage.startsWith("com.pausa.")) {
+                activeSessionApps.firstOrNull() ?: lastForegroundPackage
+            } else {
+                lastForegroundPackage
+            }
+            Log.d("PausaDebug", "GUARD home-launcher — ending session for $sessionToEnd (last=$lastForegroundPackage)")
+            if (sessionToEnd in activeSessionApps) {
+                sendStopTimer(sessionToEnd)
+                endSession(sessionToEnd)
             }
             lastForegroundPackage = "" // ALWAYS reset so next app open is detected fresh
             return
