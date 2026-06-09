@@ -62,6 +62,24 @@ class PausaAccessibilityService : AccessibilityService() {
                 return
             }
 
+            // Daily cooldown active — push home on every tick so MIUI can't relaunch the app.
+            // This runs before pendingIntercepts so the intercept never gets queued at all.
+            if (current !in ignoredPackages &&
+                current !in homeAndLauncherPackages &&
+                current !in taskSwitcherPackages &&
+                getPausaForPackage(current) != null &&
+                isInDailyCooldown(current)) {
+                if (current != lastForegroundPackage) {
+                    Log.d("PausaDebug", "poller — daily cooldown active for $current, sending home")
+                }
+                startActivity(Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+                handler.postDelayed(this, 1000)
+                return
+            }
+
             // Process pending intercepts — fire when the target app is confirmed foreground
             val now = System.currentTimeMillis()
             val iter = pendingIntercepts.iterator()

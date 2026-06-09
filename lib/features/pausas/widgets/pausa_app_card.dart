@@ -298,7 +298,7 @@ class _CooldownChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
           color: const Color(0xFF2A1515),
           borderRadius: BorderRadius.circular(8),
@@ -310,7 +310,8 @@ class _CooldownChip extends StatelessWidget {
             const Icon(Icons.block_rounded, size: 12, color: Color(0xFFE24B4A)),
             const SizedBox(width: 5),
             Text(
-              'Bloqueado hoy · Desbloquear',
+              'Bloqueado hoy',
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.dmSans(
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
