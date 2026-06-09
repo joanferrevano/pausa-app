@@ -39,8 +39,13 @@ class PausaInterstitialActivity : Activity() {
         }
 
         // Also reject if the package is currently in the expelled window
-        // (second safety net — belt and braces).
+        // (second safety net — belt and braces). Send user home instead of just
+        // finishing, otherwise they land back in the blocked app.
         if (PausaAccessibilityService.isExpelled(pkg)) {
+            startActivity(Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            })
             finish()
             return
         }

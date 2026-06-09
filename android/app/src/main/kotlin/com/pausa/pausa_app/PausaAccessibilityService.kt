@@ -4,8 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -15,6 +17,16 @@ class PausaAccessibilityService : AccessibilityService() {
 
     private var lastForegroundPackage = ""
     private val handler = Handler(Looper.getMainLooper())
+
+    private val screenOnReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_ON) {
+                Log.d("PausaDebug", "pantalla encendida — reiniciando poller")
+                handler.removeCallbacks(foregroundPoller)
+                handler.postDelayed(foregroundPoller, 500)
+            }
+        }
+    }
 
     // Polls UsageStats every second as a backup — catches resumptions that
     // don't fire a strong enough AccessibilityEvent (e.g. task resume).
@@ -244,22 +256,19 @@ class PausaAccessibilityService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
             notificationTimeout = 50
         }
+        registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
         handler.post(foregroundPoller)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            event?.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED &&
-            event?.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED) return
-
-        val packageName = event?.packageName?.toString() ?: return
-        // Never process events from our own app
-        if (packageName == applicationContext.packageName) return
-        if (packageName.startsWith("com.pausa.")) return
-        if (packageName == lastForegroundPackage) return // already handled
-
-        handleAppChange(packageName)
-        lastForegroundPackage = packageName
+        // Solo usamos el evento para asegurarnos de que el poller está corriendo.
+        // NO disparamos handleAppChange aquí — el poller con UsageStats es la única
+        // fuente de verdad para detectar cambios de app reales.
+        // Esto evita falsos positivos por navegación interna (botón atrás, fragments, etc.)
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            handler.removeCallbacks(foregroundPoller)
+            handler.post(foregroundPoller)
+        }
     }
 
     override fun onInterrupt() {
@@ -270,6 +279,7 @@ class PausaAccessibilityService : AccessibilityService() {
         super.onDestroy()
         handler.removeCallbacks(foregroundPoller)
         pendingIntercepts.clear()
+        try { unregisterReceiver(screenOnReceiver) } catch (e: Exception) {}
     }
 
     // ── Core logic — shared by onAccessibilityEvent and foregroundPoller ─────
