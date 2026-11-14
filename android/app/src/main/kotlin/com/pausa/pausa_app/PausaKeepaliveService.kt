@@ -1,6 +1,7 @@
 package com.pausa.pausa_app
 
 import android.app.*
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.*
@@ -12,6 +13,20 @@ class PausaKeepaliveService : Service() {
     companion object {
         const val CHANNEL_ID = "pausa_keepalive"
         const val NOTIFICATION_ID = 9999
+
+        /** Arranca el keepalive; nunca lanza (el sistema puede negarlo desde segundo plano). */
+        fun start(context: Context) {
+            try {
+                val intent = Intent(context, PausaKeepaliveService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e("PausaDebug", "no se pudo arrancar el keepalive: $e")
+            }
+        }
     }
 
     override fun onCreate() {

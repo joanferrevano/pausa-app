@@ -18,12 +18,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val keepaliveIntent = Intent(this, PausaKeepaliveService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(keepaliveIntent)
-        } else {
-            startService(keepaliveIntent)
-        }
+        PausaKeepaliveService.start(this)
     }
 
     override fun onResume() {

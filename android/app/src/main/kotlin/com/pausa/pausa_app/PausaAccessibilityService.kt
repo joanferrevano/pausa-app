@@ -426,6 +426,11 @@ class PausaAccessibilityService : AccessibilityService() {
         }
         registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
         handler.post(foregroundPoller)
+
+        // Si el sistema revive el servicio sin que se abra la app (tras matar el
+        // proceso o reiniciar el móvil), la notificación que protege el proceso
+        // tiene que volver también.
+        PausaKeepaliveService.start(this)
     }
 
     private fun restorePersistedSession() {
