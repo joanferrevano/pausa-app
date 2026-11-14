@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fondo de la ventana mientras arranca Flutter: color de la app + logo centrado. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <color android:color="#0A0A0A"/>
     </item>
+    <item
+        android:drawable="@drawable/splash_logo"
+        android:width="96dp"
+        android:height="96dp"
+        android:gravity="center"/>
 </layer-list>
