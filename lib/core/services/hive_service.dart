@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../features/pausas/models/pausa_config.dart';
 import '../../features/rutinas/models/rutina.dart';
@@ -19,10 +20,26 @@ class HiveService {
 
   static Future<void> init() async {
     await Hive.initFlutter();
+    await _openBoxes();
+  }
 
-    Hive.registerAdapter(PausaConfigAdapter());
-    Hive.registerAdapter(RutinaAdapter());
-    Hive.registerAdapter(BloqueoAdapter());
+  /// Solo para tests: abre las boxes en una carpeta concreta (sin plugins).
+  @visibleForTesting
+  static Future<void> initForTest(String path) async {
+    Hive.init(path);
+    await _openBoxes();
+  }
+
+  static Future<void> _openBoxes() async {
+    if (!Hive.isAdapterRegistered(HiveConstants.pausaConfigTypeId)) {
+      Hive.registerAdapter(PausaConfigAdapter());
+    }
+    if (!Hive.isAdapterRegistered(HiveConstants.rutinaTypeId)) {
+      Hive.registerAdapter(RutinaAdapter());
+    }
+    if (!Hive.isAdapterRegistered(HiveConstants.bloqueoTypeId)) {
+      Hive.registerAdapter(BloqueoAdapter());
+    }
 
     _pausasBox = await Hive.openBox<PausaConfig>(HiveConstants.pausasBox);
     _rutinasBox = await Hive.openBox<Rutina>(HiveConstants.rutinasBox);

@@ -34,6 +34,7 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
     final key = box.keyAt(index);
     await box.put(key, config);
     state = box.values.toList();
+    await _syncToNative();
   }
 
   Future<void> deletePausa(int index) async {
@@ -41,6 +42,7 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
     final key = box.keyAt(index);
     await box.delete(key);
     state = box.values.toList();
+    await _syncToNative();
   }
 
   Future<void> deletePausaByPackage(String packageName) async {

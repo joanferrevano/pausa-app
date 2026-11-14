@@ -278,7 +278,8 @@ Nada de esto rompe el build hoy.
 
 ### 🔴 Crítico
 
-- [ ] **Sincronizar siempre con el nativo.** Llamar a `_syncToNative()` en `updatePausa` y `deletePausa`. — `lib/shared/providers/pausas_provider.dart`
+- [x] **Sincronizar siempre con el nativo.** Llamar a `_syncToNative()` en `updatePausa` y `deletePausa`. — `lib/shared/providers/pausas_provider.dart`
+  - Hecho: `updatePausa` y `deletePausa` llaman a `_syncToNative()`; tests en `test/pausas_provider_test.dart`.
 - [ ] **Conservar `isActive` al editar una pausa** e impedir duplicados por paquete (al guardar, si ya existe, actualizar). — `lib/features/pausas/widgets/add_pausa_sheet.dart`, `lib/shared/providers/pausas_provider.dart`
 - [ ] **No expulsar con la pantalla apagada.** Registrar `ACTION_SCREEN_OFF` y terminar o pausar la sesión; en `isBlockedAppInForeground()` devolver `false` si no hay eventos o la pantalla no está activa. — `PausaAccessibilityService.kt`, `PausaTimerService.kt`
 - [ ] **Guardar la sesión en disco.** Persistir paquete, inicio y máximo en `pausa_prefs` y restaurarlos en `onStartCommand` con intent nulo y en `onServiceConnected`. Corregir el comentario de `PausaTimerService.kt:54`. — `PausaTimerService.kt`, `PausaAccessibilityService.kt`
