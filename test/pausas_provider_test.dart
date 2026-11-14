@@ -73,4 +73,31 @@ void main() {
     expect(syncs, hasLength(1));
     expect(syncs.last.map((e) => e['packageName']), ['b']);
   });
+
+  test('updatePausa conserva isActive', () async {
+    final n = await notifier();
+    await n.addPausa(_p('a', active: false));
+    await n.updatePausa(0, _p('a', wait: 45)); // el formulario crea isActive=true
+    expect(n.state.single.waitSeconds, 45);
+    expect(n.state.single.isActive, isFalse);
+    expect(syncs.last.single['isActive'], isFalse);
+  });
+
+  test('addPausa con paquete existente actualiza y no duplica', () async {
+    final n = await notifier();
+    await n.addPausa(_p('a', wait: 15, active: false));
+    await n.addPausa(_p('a', wait: 60, max: 10));
+    expect(n.state, hasLength(1));
+    expect(HiveService.pausasBox.length, 1);
+    expect(n.state.single.waitSeconds, 60);
+    expect(n.state.single.maxMinutes, 10);
+    expect(n.state.single.isActive, isFalse);
+  });
+
+  test('addPausa con paquetes distintos añade ambas', () async {
+    final n = await notifier();
+    await n.addPausa(_p('a'));
+    await n.addPausa(_p('b'));
+    expect(n.state.map((p) => p.packageName), ['a', 'b']);
+  });
 }

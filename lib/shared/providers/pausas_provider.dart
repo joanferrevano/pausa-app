@@ -23,7 +23,15 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
     await AccessibilityService.syncPausas(pausasList);
   }
 
+  /// Añade una pausa. Si ya existe una para ese paquete, la actualiza
+  /// (conservando su `isActive`) en vez de crear un duplicado.
   Future<void> addPausa(PausaConfig config) async {
+    final existingIndex =
+        state.indexWhere((p) => p.packageName == config.packageName);
+    if (existingIndex != -1) {
+      await updatePausa(existingIndex, config);
+      return;
+    }
     await HiveService.pausasBox.add(config);
     state = HiveService.pausasBox.values.toList();
     await _syncToNative();
@@ -32,7 +40,8 @@ class PausasNotifier extends StateNotifier<List<PausaConfig>> {
   Future<void> updatePausa(int index, PausaConfig config) async {
     final box = HiveService.pausasBox;
     final key = box.keyAt(index);
-    await box.put(key, config);
+    // El formulario de edición no tiene toggle: se conserva el estado actual.
+    await box.put(key, config.copyWith(isActive: state[index].isActive));
     state = box.values.toList();
     await _syncToNative();
   }
