@@ -34,7 +34,8 @@ Dos mitades que se comunican por `MethodChannel`:
 **Kotlin (`android/app/src/main/kotlin/com/pausa/pausa_app/`)** — el bloqueo real ocurre aquí, no en Dart:
 - `PausaAccessibilityService`: detecta la app en primer plano (con un poller de 1 s), tiene la lista de apps bloqueadas, lanza la interstitial y gestiona expulsión, lockout post-expulsión y cooldown diario. Estado en memoria + `SharedPreferences("pausa_prefs")` (cooldown/expulsión por día natural).
 - `PausaInterstitialActivity`: countdown iniciado por el usuario; al terminar entrega la sesión a `PausaTimerService`.
-- `PausaTimerService`: aplica el tiempo máximo de sesión y expulsa si la app sigue en primer plano. El estado es solo en memoria (se pierde si matan el proceso).
+- `PausaTimerService`: aplica el tiempo máximo de sesión y expulsa si la app sigue en primer plano. La sesión se guarda en disco con `SessionStore` (sesión en curso + segundos usados por app y día en `pausa_prefs`) y se restaura si matan el proceso; una sesión restaurada solo expulsa con la pantalla activa y la app confirmada delante.
+- `ForegroundHelper`: último evento de primer plano en una ventana larga; lo usa el servicio de accesibilidad al reconectar y la restauración de sesión.
 - `PausaKeepaliveService`: servicio foreground sticky que se reprograma al quitar la tarea (necesario en MIUI/Samsung/etc.).
 - `UsageStatsHelper`: agregación de uso (emparejado foreground, pantalla apagada, mínimo 60 s, top 10).
 
