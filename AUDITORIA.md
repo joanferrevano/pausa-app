@@ -313,7 +313,8 @@ Nada de esto rompe el build hoy.
 - [ ] **Quitar o condicionar los logs en release** (`if (BuildConfig.DEBUG)`). — los 4 archivos Kotlin de servicios, `build.gradle.kts`
 - [ ] **Arreglar la lista de recientes / lanzador**: detectar el lanzador preguntando al sistema y decidir qué hacer con recientes (hoy termina la sesión). — `PausaAccessibilityService.kt`
 - [ ] **No ofrecer en el selector apps que el servicio ignora**, o quitar el filtro `com.android.*`. — `UsageStatsHelper.kt`, `PausaAccessibilityService.kt`
-- [ ] **Receptor de `BOOT_COMPLETED`** que arranque el keepalive. — `AndroidManifest.xml`, nuevo `BootReceiver.kt`
+- [x] **Receptor de `BOOT_COMPLETED`** que arranque el keepalive. — `AndroidManifest.xml`, nuevo `BootReceiver.kt`
+  - Hecho: `BootReceiver` arranca el keepalive en `BOOT_COMPLETED` y `MY_PACKAGE_REPLACED`; permiso `RECEIVE_BOOT_COMPLETED` añadido al manifest. Pendiente de probar en dispositivo.
 - [ ] **Actualizar README y notas de la release**: Android 7.0+, bloqueo hasta medianoche, estado real de Rutinas/Bloqueos, permisos. — `README.md`, `NOTAS_RELEASE_v1.0.0-beta.md`, `pubspec.yaml`
 - [ ] **Tests de los notifiers y modelos** (pausas, rutinas, bloqueos) con Hive en memoria. — `test/`
 - [ ] **Prueba manual en dispositivo de los puntos marcados "(sin probar en dispositivo)"**, empezando por los bugs 3, 4, 6 y 9, para confirmarlos antes de invertir tiempo.
