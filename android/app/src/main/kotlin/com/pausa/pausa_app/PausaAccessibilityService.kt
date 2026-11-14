@@ -157,6 +157,13 @@ class PausaAccessibilityService : AccessibilityService() {
         // Set before any companion function that uses it is called.
         private var appContext: Context? = null
 
+        // True solo mientras el sistema tiene el servicio enlazado en este proceso.
+        // El ajuste de Accesibilidad puede decir "activado" con el servicio caído
+        // (p. ej. tras matar HyperOS el proceso); esto dice si funciona de verdad.
+        @Volatile
+        var isConnected = false
+            private set
+
         fun startSession(packageName: String) {
             activeSessionApps.add(packageName)
             expelledApps.remove(packageName)
@@ -384,6 +391,7 @@ class PausaAccessibilityService : AccessibilityService() {
         // ── Step 1: context — MUST be absolute first line so every companion
         //            function that calls getSharedPreferences has a valid context.
         appContext = applicationContext
+        isConnected = true
 
         // ── Step 2: restore expelled state from prefs BEFORE clearAll() so the
         //            in-memory values are populated when clearAll's log reads them.
@@ -473,8 +481,14 @@ class PausaAccessibilityService : AccessibilityService() {
         handler.removeCallbacks(foregroundPoller)
     }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        isConnected = false
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        isConnected = false
         handler.removeCallbacks(foregroundPoller)
         pendingIntercepts.clear()
         try { unregisterReceiver(screenOnReceiver) } catch (e: Exception) {}

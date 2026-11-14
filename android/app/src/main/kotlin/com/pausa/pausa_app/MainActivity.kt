@@ -126,6 +126,9 @@ class MainActivity : FlutterActivity() {
                     "isAccessibilityEnabled" -> {
                         result.success(isAccessibilityServiceEnabled())
                     }
+                    "isAccessibilityRunning" -> {
+                        result.success(PausaAccessibilityService.isConnected)
+                    }
                     "openAccessibilitySettings" -> {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         result.success(null)

@@ -13,6 +13,17 @@ class AccessibilityService {
     }
   }
 
+  /// True solo si el sistema tiene el servicio enlazado y funcionando.
+  /// [isEnabled] puede ser true con el servicio caído.
+  static Future<bool> isRunning() async {
+    try {
+      final result = await _channel.invokeMethod<bool>('isAccessibilityRunning');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> openSettings() async {
     try {
       await _channel.invokeMethod('openAccessibilitySettings');

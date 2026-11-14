@@ -11,6 +11,7 @@ import 'mini_stat_card.dart';
 import 'app_usage_card.dart';
 import 'motivation_banner.dart';
 import 'permission_banner.dart';
+import 'service_stopped_banner.dart';
 
 class DashboardTab extends ConsumerStatefulWidget {
   const DashboardTab({super.key});
@@ -40,6 +41,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      ref.read(accessibilityProvider.notifier).refresh();
       ref.read(usageStatsProvider.notifier).load();
     }
   }
@@ -53,6 +55,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
   @override
   Widget build(BuildContext context) {
     final usage = ref.watch(usageStatsProvider);
+    final access = ref.watch(accessibilityProvider);
     final activePausas =
         ref.watch(pausasProvider).where((p) => p.isActive).length;
 
@@ -71,6 +74,13 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           child: _Header(),
         ),
         const SizedBox(height: 16),
+        if (access.isStopped) ...[
+          ServiceStoppedBanner(
+            onOpenAccessibility: () =>
+                ref.read(accessibilityProvider.notifier).openSettings(),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (!usage.hasPermission && !usage.isLoading) ...[
           const _FadeSlide(delay: 40, child: PermissionBanner()),
           const SizedBox(height: 16),
