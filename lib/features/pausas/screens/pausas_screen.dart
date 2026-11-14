@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/services/accessibility_service.dart';
+import '../../../core/widgets/accessibility_warning.dart';
 import '../../../shared/providers/pausas_provider.dart';
 import '../../../shared/providers/accessibility_provider.dart';
 import '../models/pausa_config.dart';
@@ -71,17 +72,6 @@ class PausasScreen extends ConsumerWidget {
     );
   }
 
-  Widget _banner(BuildContext context, WidgetRef ref) {
-    return _AccessibilityBanner(
-      onTap: () async {
-        await ref.read(accessibilityProvider.notifier).openSettings();
-        Future.delayed(const Duration(seconds: 1), () {
-          ref.read(accessibilityProvider.notifier).refresh();
-        });
-      },
-    );
-  }
-
   Widget _emptyWithBanner(
     BuildContext context,
     WidgetRef ref,
@@ -89,11 +79,11 @@ class PausasScreen extends ConsumerWidget {
   ) {
     return CustomScrollView(
       slivers: [
-        if (!accessState.isLoading && !accessState.isEnabled)
-          SliverToBoxAdapter(
+        if (accessState.needsAttention)
+          const SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-              child: _banner(context, ref),
+              padding: EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: AccessibilityWarning(),
             ),
           ),
         const SliverFillRemaining(child: EmptyPausasState()),
@@ -107,16 +97,16 @@ class PausasScreen extends ConsumerWidget {
     List<PausaConfig> pausas,
     AccessibilityState accessState,
   ) {
+    final showWarning = accessState.needsAttention;
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
-      itemCount: pausas.length +
-          (!accessState.isLoading && !accessState.isEnabled ? 1 : 0),
+      itemCount: pausas.length + (showWarning ? 1 : 0),
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, i) {
-        if (!accessState.isLoading && !accessState.isEnabled && i == 0) {
-          return _banner(context, ref);
+        if (showWarning && i == 0) {
+          return const AccessibilityWarning();
         }
-        final idx = (!accessState.isLoading && !accessState.isEnabled) ? i - 1 : i;
+        final idx = showWarning ? i - 1 : i;
         return _FadeSlide(
           delay: Duration(milliseconds: idx * 80),
           child: PausaAppCard(
@@ -219,63 +209,6 @@ class _AddFab extends StatefulWidget {
 
   @override
   State<_AddFab> createState() => _AddFabState();
-}
-
-class _AccessibilityBanner extends StatelessWidget {
-  const _AccessibilityBanner({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF4A4A8A), width: 0.5),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.accessibility_new_rounded,
-            color: Color(0xFF8A8ADA),
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Activa el permiso de accesibilidad para que las pausas funcionen.',
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                color: PausaColors.textSecondary,
-                height: 1.5,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: PausaColors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Activar',
-                style: GoogleFonts.dmSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: PausaColors.black,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _AddFabState extends State<_AddFab> {

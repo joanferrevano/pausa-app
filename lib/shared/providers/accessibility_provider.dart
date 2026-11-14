@@ -15,6 +15,13 @@ class AccessibilityState {
   /// Activado en Ajustes pero sin funcionar: el sistema no ha vuelto a enlazar
   /// el servicio (pasa en Xiaomi tras "cerrar todo") y las pausas no saltan.
   bool get isStopped => !isLoading && isEnabled && !isRunning;
+
+  /// Desactivado en Ajustes. HyperOS lo apaga del todo al matar el proceso
+  /// si Pausa no tiene "Inicio automático".
+  bool get isDisabled => !isLoading && !isEnabled;
+
+  /// Las pausas no van a saltar: hay que avisar al usuario.
+  bool get needsAttention => isDisabled || isStopped;
 }
 
 class AccessibilityNotifier extends StateNotifier<AccessibilityState> {

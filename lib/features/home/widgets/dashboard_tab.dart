@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
-import '../../../core/services/accessibility_service.dart';
+import '../../../core/widgets/accessibility_warning.dart';
 import '../../../shared/providers/usage_stats_provider.dart';
 import '../../../shared/providers/accessibility_provider.dart';
 import '../../../shared/providers/pausas_provider.dart';
@@ -12,7 +12,6 @@ import 'mini_stat_card.dart';
 import 'app_usage_card.dart';
 import 'motivation_banner.dart';
 import 'permission_banner.dart';
-import 'service_stopped_banner.dart';
 
 class DashboardTab extends ConsumerStatefulWidget {
   const DashboardTab({super.key});
@@ -42,6 +41,8 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      // Aunque el aviso no esté en pantalla: el servicio puede haber caído
+      // mientras la app estaba en segundo plano.
       ref.read(accessibilityProvider.notifier).refresh();
       ref.read(usageStatsProvider.notifier).load();
     }
@@ -75,14 +76,8 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           child: _Header(),
         ),
         const SizedBox(height: 16),
-        if (access.isStopped) ...[
-          ServiceStoppedBanner(
-            onOpenAccessibility: () =>
-                ref.read(accessibilityProvider.notifier).openSettings(),
-            showXiaomiGuide: ref.watch(isXiaomiProvider).valueOrNull ?? false,
-            onOpenAutostart: AccessibilityService.openAutostartSettings,
-            onOpenAppDetails: AccessibilityService.openAppDetails,
-          ),
+        if (access.needsAttention) ...[
+          const AccessibilityWarning(),
           const SizedBox(height: 16),
         ],
         if (!usage.hasPermission && !usage.isLoading) ...[
