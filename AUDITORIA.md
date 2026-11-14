@@ -302,8 +302,10 @@ Nada de esto rompe el build hoy.
 - [ ] **Ocultar o marcar como "próximamente" Rutinas y Bloqueos** hasta que bloqueen de verdad. — `lib/features/home/widgets/bottom_nav.dart`, `lib/features/home/screens/home_screen.dart`, `lib/features/rutinas/screens/rutinas_screen.dart`, `lib/features/bloqueos/screens/bloqueos_screen.dart`
 - [x] **Arreglar el nombre de la app**: `android:label="@string/app_name"`. — `android/app/src/main/AndroidManifest.xml`
   - Hecho: `android:label` de la aplicación apunta a `@string/app_name` ("Pausa").
-- [ ] **Unir los dos commits sin subir** (`3f7c2e4` y `13a9239`) antes de hacer push para que el APK de 53 MB no entre en GitHub. — historial de git
-- [ ] **Copia de seguridad del keystore y de `key.properties`** fuera de la carpeta del proyecto. — `android/app/upload-keystore.jks`, `android/key.properties`
+- [x] **Unir los dos commits sin subir** (`3f7c2e4` y `13a9239`) antes de hacer push para que el APK de 53 MB no entre en GitHub. — historial de git
+  - Hecho por Joan: commits unidos con `reset --soft`; el APK nunca llegó a GitHub.
+- [x] **Copia de seguridad del keystore y de `key.properties`** fuera de la carpeta del proyecto. — `android/app/upload-keystore.jks`, `android/key.properties`
+  - Hecho por Joan: copia de ambos en su NAS.
 
 ### 🟠 Importante
 
@@ -320,7 +322,7 @@ Nada de esto rompe el build hoy.
 - [ ] **Arreglar la lista de recientes / lanzador**: detectar el lanzador preguntando al sistema y decidir qué hacer con recientes (hoy termina la sesión). — `PausaAccessibilityService.kt`
 - [ ] **No ofrecer en el selector apps que el servicio ignora**, o quitar el filtro `com.android.*`. — `UsageStatsHelper.kt`, `PausaAccessibilityService.kt`
 - [x] **Receptor de `BOOT_COMPLETED`** que arranque el keepalive. — `AndroidManifest.xml`, nuevo `BootReceiver.kt`
-  - Hecho: `BootReceiver` arranca el keepalive en `BOOT_COMPLETED` y `MY_PACKAGE_REPLACED`; permiso `RECEIVE_BOOT_COMPLETED` añadido al manifest. Pendiente de probar en dispositivo.
+  - Hecho: `BootReceiver` arranca el keepalive en `BOOT_COMPLETED` y `MY_PACKAGE_REPLACED`; permiso `RECEIVE_BOOT_COMPLETED` añadido al manifest. Probado en dispositivo el 14-11 (HyperOS 3, con "Inicio automático"): tras reiniciar el móvil, sin abrir Pausa, la pausa salta al abrir TikTok.
 - [ ] **Actualizar README y notas de la release**: Android 7.0+, bloqueo hasta medianoche, estado real de Rutinas/Bloqueos, permisos. — `README.md`, `NOTAS_RELEASE_v1.0.0-beta.md`, `pubspec.yaml`
 - [ ] **Tests de los notifiers y modelos** (pausas, rutinas, bloqueos) con Hive en memoria. — `test/`
 - [ ] **Prueba manual en dispositivo de los puntos marcados "(sin probar en dispositivo)"**, empezando por los bugs 3, 4, 6 y 9, para confirmarlos antes de invertir tiempo.
