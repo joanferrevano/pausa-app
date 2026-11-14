@@ -28,19 +28,46 @@ class PausaAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    private val screenOnReceiver = object : BroadcastReceiver() {
+    private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_ON) {
-                Log.d("PausaDebug", "pantalla encendida — reiniciando poller")
-                // Sentinel forces the next poller tick to evaluate whatever app is in
-                // foreground, even if it was already there before the screen turned off.
-                // If the timer expired while the screen was off, the app will have no
-                // active session and pendingIntercepts will re-trigger the countdown.
-                lastForegroundPackage = "__reset__"
-                handler.removeCallbacks(foregroundPoller)
-                handler.postDelayed(foregroundPoller, 500)
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> onScreenOff()
+                Intent.ACTION_SCREEN_ON -> {
+                    Log.d("PausaDebug", "pantalla encendida — reiniciando poller")
+                    // Sentinel forces the next poller tick to evaluate whatever app is in
+                    // foreground, even if it was already there before the screen turned off.
+                    // The session ended when the screen went off, so the app has no
+                    // active session and pendingIntercepts will re-trigger the countdown.
+                    lastForegroundPackage = "__reset__"
+                    handler.removeCallbacks(foregroundPoller)
+                    handler.postDelayed(foregroundPoller, 500)
+                }
+                Intent.ACTION_USER_PRESENT -> {
+                    // Tras desbloquear, la app que estaba debajo vuelve a quedar delante.
+                    // La búsqueda larga la encuentra aunque su evento ya no entre en la
+                    // ventana corta del poller.
+                    Log.d("PausaDebug", "móvil desbloqueado — reevaluando la app delante")
+                    lastForegroundPackage = "__reset__"
+                    needsLongLookup = true
+                    handler.removeCallbacks(foregroundPoller)
+                    handler.postDelayed(foregroundPoller, 500)
+                }
             }
         }
+    }
+
+    // Apagar la pantalla cuenta como salir de la app: se cierra la sesión (el uso
+    // se suma hasta este momento) y se cancela la cuenta atrás si estaba en marcha.
+    // Sin esto el temporizador seguía corriendo con el móvil bloqueado y expulsaba
+    // —con bloqueo hasta medianoche— por tiempo que nadie había usado.
+    private fun onScreenOff() {
+        val sessions = activeSessionApps.toList()
+        Log.d("PausaDebug", "pantalla apagada — cerrando sesiones: $sessions / temporizador: ${PausaTimerService.currentPackage}")
+        PausaInterstitialActivity.cancelForScreenOff()
+        PausaTimerService.stopAll()
+        sessions.forEach { endSession(it) }
+        pendingIntercepts.clear()
+        lastForegroundPackage = ""
     }
 
     // Polls UsageStats every second as a backup — catches resumptions that
@@ -432,7 +459,11 @@ class PausaAccessibilityService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
             notificationTimeout = 50
         }
-        registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
+        registerReceiver(screenReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        })
         handler.post(foregroundPoller)
 
         // Si el sistema revive el servicio sin que se abra la app (tras matar el
@@ -491,7 +522,7 @@ class PausaAccessibilityService : AccessibilityService() {
         isConnected = false
         handler.removeCallbacks(foregroundPoller)
         pendingIntercepts.clear()
-        try { unregisterReceiver(screenOnReceiver) } catch (e: Exception) {}
+        try { unregisterReceiver(screenReceiver) } catch (e: Exception) {}
     }
 
     // ── Core logic — shared by onAccessibilityEvent and foregroundPoller ─────

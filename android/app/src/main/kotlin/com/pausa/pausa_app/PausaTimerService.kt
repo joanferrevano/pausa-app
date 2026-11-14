@@ -1,8 +1,6 @@
 package com.pausa.pausa_app
 
 import android.app.*
-import android.app.usage.UsageEvents
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.os.*
@@ -38,8 +36,10 @@ class PausaTimerService : Service() {
             if (elapsed >= maxSeconds) {
                 handler.removeCallbacks(this)
                 Log.d("PausaTimer", "TIME UP for $packageName")
-                val inFront = if (restored) isConfirmedInForeground() else isBlockedAppInForeground()
-                if (inFront) {
+                // Solo se expulsa con confirmación positiva: pantalla activa y la app
+                // delante. Ante la duda (pantalla apagada, sin eventos, error) no se
+                // expulsa: un falso positivo bloquea la app hasta medianoche.
+                if (isConfirmedInForeground()) {
                     Log.d("PausaTimer", "App still in foreground — expelling")
                     expelUser()
                 } else {
@@ -57,6 +57,9 @@ class PausaTimerService : Service() {
     companion object {
         const val CHANNEL_ID = "pausa_timer_channel"
         const val NOTIFICATION_ID = 1001
+        // Margen sobre el inicio de la sesión al buscar la app delante: la cuenta
+        // atrás y la entrada en la app ocurren unos segundos alrededor del inicio.
+        private const val WINDOW_MARGIN_MS = 5 * 60 * 1000L
 
         // Los campos estáticos NO sobreviven a que el sistema mate el proceso:
         // la sesión se guarda en disco con SessionStore y se restaura de ahí.
@@ -266,37 +269,25 @@ class PausaTimerService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun isBlockedAppInForeground(): Boolean {
-        return try {
-            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-            val now = System.currentTimeMillis()
-            val events = usm.queryEvents(now - 5000, now)
-            val event = UsageEvents.Event()
-            var lastFg = ""
-            var lastBg = ""
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
-                when (event.eventType) {
-                    UsageEvents.Event.MOVE_TO_FOREGROUND -> lastFg = event.packageName
-                    UsageEvents.Event.MOVE_TO_BACKGROUND -> lastBg = event.packageName
-                }
-            }
-            if (lastBg == packageName && lastFg != packageName) return false
-            if (lastFg.isNotEmpty()) return lastFg == packageName
-            true
-        } catch (e: Exception) {
-            true
-        }
-    }
-
     /**
-     * Comprobación estricta para sesiones restauradas: pantalla activa y el
-     * último evento de primer plano es de esta app y sigue delante.
+     * Comprobación estricta antes de expulsar: pantalla activa y el último
+     * evento de primer plano es de esta app y sigue delante.
+     *
+     * La ventana cubre siempre la sesión entera: quien se queda en una sola
+     * pantalla (un vídeo, sin tocar nada) no genera eventos nuevos, y el único
+     * que lo delata es el de cuando entró, justo al empezar la sesión.
      */
     private fun isConfirmedInForeground(): Boolean {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (!pm.isInteractive) return false
-        return ForegroundHelper.lastForegroundPackage(this) == packageName
+        if (!pm.isInteractive) {
+            Log.d("PausaTimer", "pantalla apagada — no se expulsa")
+            return false
+        }
+        val sinceStart = System.currentTimeMillis() - startTimeMs + WINDOW_MARGIN_MS
+        val window = maxOf(ForegroundHelper.LONG_WINDOW_MS, sinceStart)
+        val front = ForegroundHelper.lastForegroundPackage(this, window)
+        Log.d("PausaTimer", "app delante al agotarse el tiempo: $front")
+        return front == packageName
     }
 
     override fun onDestroy() {

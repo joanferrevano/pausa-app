@@ -23,6 +23,24 @@ class PausaInterstitialActivity : Activity() {
     private var countdownCompleted = false
     private var countdownView: TextView? = null
 
+    companion object {
+        private var current: java.lang.ref.WeakReference<PausaInterstitialActivity>? = null
+
+        /** Pantalla apagada: cancela la cuenta atrás en curso (si la hay) y cierra. */
+        fun cancelForScreenOff() {
+            current?.get()?.cancelCountdownAndFinish()
+        }
+    }
+
+    private fun cancelCountdownAndFinish() {
+        if (countdownCompleted) return
+        Log.d("PausaDebug", "PausaInterstitialActivity — pantalla apagada, cuenta atrás cancelada para $packageName")
+        countDownTimer?.cancel()
+        countDownTimer = null
+        PausaAccessibilityService.endSession(packageName)
+        if (!isFinishing) finish()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -70,6 +88,7 @@ class PausaInterstitialActivity : Activity() {
         }
 
         packageName = pkg
+        current = java.lang.ref.WeakReference(this)
         appName = intent.getStringExtra("appName") ?: packageName
         waitSeconds = intent.getIntExtra("waitSeconds", 15)
         maxMinutes = intent.getIntExtra("maxMinutes", 20)
@@ -248,7 +267,8 @@ class PausaInterstitialActivity : Activity() {
     override fun onResume() {
         super.onResume()
         // Always restart from beginning if countdown not completed
-        if (!countdownCompleted) {
+        // (salvo que ya se esté cerrando, p. ej. cancelada al apagar la pantalla)
+        if (!countdownCompleted && !isFinishing) {
             startCountdown()
         }
     }
@@ -266,6 +286,7 @@ class PausaInterstitialActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (current?.get() === this) current = null
         countDownTimer?.cancel()
     }
 }
