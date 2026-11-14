@@ -1,6 +1,8 @@
 package com.pausa.pausa_app
 
+import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -129,6 +131,16 @@ class MainActivity : FlutterActivity() {
                     "isAccessibilityRunning" -> {
                         result.success(PausaAccessibilityService.isConnected)
                     }
+                    "isXiaomi" -> {
+                        result.success(isXiaomiDevice())
+                    }
+                    "openAutostartSettings" -> {
+                        result.success(openAutostartSettings())
+                    }
+                    "openAppDetails" -> {
+                        openAppDetails()
+                        result.success(null)
+                    }
                     "openAccessibilitySettings" -> {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         result.success(null)
@@ -152,6 +164,44 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // Xiaomi, Redmi y POCO (MIUI / HyperOS) matan el proceso al limpiar recientes
+    // y no lo relanzan sin el permiso propio de "Inicio automático".
+    private fun isXiaomiDevice(): Boolean {
+        val names = listOf(Build.MANUFACTURER, Build.BRAND).map { it.lowercase() }
+        return names.any { n -> listOf("xiaomi", "redmi", "poco").any { n.contains(it) } }
+    }
+
+    /** Abre la lista de Inicio automático de MIUI; si no existe, la ficha de la app. */
+    private fun openAutostartSettings(): Boolean {
+        return try {
+            startActivity(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.miui.securitycenter",
+                        "com.miui.permcenter.autostart.AutoStartManagementActivity"
+                    )
+                )
+            )
+            true
+        } catch (e: Exception) {
+            openAppDetails()
+            false
+        }
+    }
+
+    private fun openAppDetails() {
+        try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", packageName, null)
+                )
+            )
+        } catch (e: Exception) {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        }
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {

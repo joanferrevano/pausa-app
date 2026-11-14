@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/services/accessibility_service.dart';
 import '../../../shared/providers/usage_stats_provider.dart';
 import '../../../shared/providers/accessibility_provider.dart';
 import '../../../shared/providers/pausas_provider.dart';
@@ -78,6 +79,9 @@ class _DashboardTabState extends ConsumerState<DashboardTab>
           ServiceStoppedBanner(
             onOpenAccessibility: () =>
                 ref.read(accessibilityProvider.notifier).openSettings(),
+            showXiaomiGuide: ref.watch(isXiaomiProvider).valueOrNull ?? false,
+            onOpenAutostart: AccessibilityService.openAutostartSettings,
+            onOpenAppDetails: AccessibilityService.openAppDetails,
           ),
           const SizedBox(height: 16),
         ],

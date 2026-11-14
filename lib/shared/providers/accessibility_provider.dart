@@ -50,6 +50,10 @@ class AccessibilityNotifier extends StateNotifier<AccessibilityState> {
   }
 }
 
+/// El fabricante no cambia: se consulta una vez.
+final isXiaomiProvider =
+    FutureProvider<bool>((ref) => AccessibilityService.isXiaomi());
+
 final accessibilityProvider =
     StateNotifierProvider<AccessibilityNotifier, AccessibilityState>(
   (ref) => AccessibilityNotifier(),

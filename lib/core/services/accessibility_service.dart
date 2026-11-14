@@ -24,6 +24,31 @@ class AccessibilityService {
     }
   }
 
+  /// Xiaomi, Redmi o POCO: necesitan "Inicio automático" para que Pausa
+  /// vuelva sola después de limpiar las apps recientes.
+  static Future<bool> isXiaomi() async {
+    try {
+      final result = await _channel.invokeMethod<bool>('isXiaomi');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Abre la lista de Inicio automático; si no existe, la ficha de la app.
+  static Future<void> openAutostartSettings() async {
+    try {
+      await _channel.invokeMethod('openAutostartSettings');
+    } catch (_) {}
+  }
+
+  /// Ficha de Pausa en los ajustes del sistema (batería, inicio automático).
+  static Future<void> openAppDetails() async {
+    try {
+      await _channel.invokeMethod('openAppDetails');
+    } catch (_) {}
+  }
+
   static Future<void> openSettings() async {
     try {
       await _channel.invokeMethod('openAccessibilitySettings');

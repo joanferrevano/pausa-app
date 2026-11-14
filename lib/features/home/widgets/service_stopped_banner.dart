@@ -7,9 +7,20 @@ const _amberColor = Color(0xFFEFB84A);
 /// Aviso del home cuando la accesibilidad figura como activada en Ajustes pero
 /// el servicio no está funcionando: las pausas no saltan hasta reactivarlo.
 class ServiceStoppedBanner extends StatelessWidget {
-  const ServiceStoppedBanner({super.key, required this.onOpenAccessibility});
+  const ServiceStoppedBanner({
+    super.key,
+    required this.onOpenAccessibility,
+    this.showXiaomiGuide = false,
+    this.onOpenAutostart,
+    this.onOpenAppDetails,
+  });
 
   final VoidCallback onOpenAccessibility;
+
+  /// En Xiaomi, Redmi y POCO se añade cómo evitar que vuelva a pasar.
+  final bool showXiaomiGuide;
+  final VoidCallback? onOpenAutostart;
+  final VoidCallback? onOpenAppDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +69,43 @@ class ServiceStoppedBanner extends StatelessWidget {
             onTap: onOpenAccessibility,
             filled: true,
           ),
+          if (showXiaomiGuide) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Para que no vuelva a pasar',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _amberColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'En Xiaomi, Redmi y POCO el sistema cierra Pausa al limpiar las '
+              'apps recientes. Activa «Inicio automático» para Pausa y, en la '
+              'ficha de la app, pon «Ahorro de batería» en «Sin restricciones».',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: _amberColor,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                BannerButton(
+                  label: 'Inicio automático',
+                  onTap: onOpenAutostart ?? () {},
+                ),
+                BannerButton(
+                  label: 'Ficha de la app',
+                  onTap: onOpenAppDetails ?? () {},
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
