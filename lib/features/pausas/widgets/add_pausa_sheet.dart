@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +10,16 @@ import '../models/pausa_config.dart';
 import 'time_picker_row.dart';
 
 const _waitOptions = ['10s', '15s', '30s', '1min', '2min'];
-const _maxOptions = ['5min', '10min', '15min', '20min', '30min', 'Sin límite'];
+// '1min' solo existe en builds debug, para probar la expulsión sin esperar.
+const _maxOptions = [
+  if (kDebugMode) '1min',
+  '5min',
+  '10min',
+  '15min',
+  '20min',
+  '30min',
+  'Sin límite',
+];
 
 int _waitToSeconds(String v) {
   if (v.endsWith('min')) return int.parse(v.replaceAll('min', '')) * 60;
