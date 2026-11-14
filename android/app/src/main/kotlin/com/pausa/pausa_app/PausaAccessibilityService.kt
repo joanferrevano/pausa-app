@@ -16,6 +16,16 @@ import android.view.accessibility.AccessibilityEvent
 class PausaAccessibilityService : AccessibilityService() {
 
     private var lastForegroundPackage = ""
+
+    // Tras (re)conectar el servicio, el primer tic busca la app que está delante
+    // en una ventana larga: si el proceso estuvo muerto unos segundos, la app
+    // bloqueada pudo abrirse antes y ya no aparece en la ventana corta de 2 s.
+    private var needsLongLookup = false
+    // Resultado de esa búsqueda, válido unos segundos para que el tic siguiente
+    // pueda disparar el intercept pendiente aunque no haya eventos nuevos.
+    private var stickyForeground: String? = null
+    private var stickyUntilMs = 0L
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val screenOnReceiver = object : BroadcastReceiver() {
@@ -37,7 +47,7 @@ class PausaAccessibilityService : AccessibilityService() {
     // don't fire a strong enough AccessibilityEvent (e.g. task resume).
     private val foregroundPoller = object : Runnable {
         override fun run() {
-            val current = getCurrentForegroundApp() ?: run {
+            val current = resolveForegroundApp() ?: run {
                 handler.postDelayed(this, 1000)
                 return
             }
@@ -393,6 +403,7 @@ class PausaAccessibilityService : AccessibilityService() {
         // whatever app is currently in foreground, even if it was already there before
         // the service connected (e.g. TikTok open in background when PAUSA was closed).
         lastForegroundPackage = "__reset__"
+        needsLongLookup = true
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                     AccessibilityEvent.TYPE_WINDOWS_CHANGED or
@@ -554,6 +565,30 @@ class PausaAccessibilityService : AccessibilityService() {
     }
 
     // ── UsageStats poller ─────────────────────────────────────────────────────
+
+    /**
+     * App en primer plano para este tic. Normalmente la ventana corta; justo
+     * después de conectar, la búsqueda larga (último evento de primer plano).
+     */
+    private fun resolveForegroundApp(): String? {
+        val now = System.currentTimeMillis()
+        if (needsLongLookup) {
+            needsLongLookup = false
+            val pkg = ForegroundHelper.lastForegroundPackage(this)
+            Log.d("PausaDebug", "búsqueda larga tras conectar — app delante: $pkg")
+            if (pkg != null) {
+                stickyForeground = pkg
+                stickyUntilMs = now + 4000L
+            }
+            return pkg
+        }
+        val recent = getCurrentForegroundApp()
+        if (recent != null) {
+            stickyForeground = null
+            return recent
+        }
+        return stickyForeground?.takeIf { now <= stickyUntilMs }
+    }
 
     private fun getCurrentForegroundApp(): String? {
         return try {
