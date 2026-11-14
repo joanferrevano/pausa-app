@@ -285,7 +285,8 @@ Nada de esto rompe el build hoy.
 - [ ] **No expulsar con la pantalla apagada.** Registrar `ACTION_SCREEN_OFF` y terminar o pausar la sesión; en `isBlockedAppInForeground()` devolver `false` si no hay eventos o la pantalla no está activa. — `PausaAccessibilityService.kt`, `PausaTimerService.kt`
 - [ ] **Guardar la sesión en disco.** Persistir paquete, inicio y máximo en `pausa_prefs` y restaurarlos en `onStartCommand` con intent nulo y en `onServiceConnected`. Corregir el comentario de `PausaTimerService.kt:54`. — `PausaTimerService.kt`, `PausaAccessibilityService.kt`
 - [ ] **Ocultar o marcar como "próximamente" Rutinas y Bloqueos** hasta que bloqueen de verdad. — `lib/features/home/widgets/bottom_nav.dart`, `lib/features/home/screens/home_screen.dart`, `lib/features/rutinas/screens/rutinas_screen.dart`, `lib/features/bloqueos/screens/bloqueos_screen.dart`
-- [ ] **Arreglar el nombre de la app**: `android:label="@string/app_name"`. — `android/app/src/main/AndroidManifest.xml`
+- [x] **Arreglar el nombre de la app**: `android:label="@string/app_name"`. — `android/app/src/main/AndroidManifest.xml`
+  - Hecho: `android:label` de la aplicación apunta a `@string/app_name` ("Pausa").
 - [ ] **Unir los dos commits sin subir** (`3f7c2e4` y `13a9239`) antes de hacer push para que el APK de 53 MB no entre en GitHub. — historial de git
 - [ ] **Copia de seguridad del keystore y de `key.properties`** fuera de la carpeta del proyecto. — `android/app/upload-keystore.jks`, `android/key.properties`
 
