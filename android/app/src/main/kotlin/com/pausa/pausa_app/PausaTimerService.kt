@@ -16,6 +16,11 @@ class PausaTimerService : Service() {
     private var appName: String = ""
     private var maxSeconds: Int = 0
     private var isStopping = false
+    private var startTimeMs: Long = 0L
+    // true si la sesión se recuperó del disco tras morir el proceso: no sabemos
+    // con certeza qué pasó mientras tanto, así que solo se expulsa si se puede
+    // confirmar que la app está realmente delante con la pantalla activa.
+    private var restored = false
 
     val timerRunnable: Runnable = object : Runnable {
         override fun run() {
@@ -25,6 +30,7 @@ class PausaTimerService : Service() {
             Log.d("PausaTimer", "tick — elapsed: ${elapsed}s / max: ${maxSeconds}s / pkg: $packageName")
 
             if (elapsed % 10 == 0) {
+                SessionStore.heartbeat(this@PausaTimerService)
                 val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                 nm.notify(NOTIFICATION_ID, buildNotification(remaining.coerceAtLeast(0)))
             }
@@ -32,7 +38,8 @@ class PausaTimerService : Service() {
             if (elapsed >= maxSeconds) {
                 handler.removeCallbacks(this)
                 Log.d("PausaTimer", "TIME UP for $packageName")
-                if (isBlockedAppInForeground()) {
+                val inFront = if (restored) isConfirmedInForeground() else isBlockedAppInForeground()
+                if (inFront) {
                     Log.d("PausaTimer", "App still in foreground — expelling")
                     expelUser()
                 } else {
@@ -51,11 +58,8 @@ class PausaTimerService : Service() {
         const val CHANNEL_ID = "pausa_timer_channel"
         const val NOTIFICATION_ID = 1001
 
-        // Static fields survive process kill + START_STICKY restart
-        private var savedPackageName = ""
-        private var savedAppName = ""
-        private var savedMaxSeconds = 0
-        private var savedStartTimeMs = 0L
+        // Los campos estáticos NO sobreviven a que el sistema mate el proceso:
+        // la sesión se guarda en disco con SessionStore y se restaura de ahí.
 
         // Singleton access for direct static calls (no broadcast needed)
         private var instance: PausaTimerService? = null
@@ -94,7 +98,7 @@ class PausaTimerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent != null) {
+        if (intent != null && !intent.getBooleanExtra("restore", false)) {
             val newPackage = intent.getStringExtra("packageName") ?: return START_NOT_STICKY
 
             // Already running for same package — ignore duplicate start
@@ -108,42 +112,58 @@ class PausaTimerService : Service() {
                 Log.d("PausaTimer", "Switching timer from $currentPackage to $newPackage")
                 handler.removeCallbacks(timerRunnable)
                 PausaAccessibilityService.endSession(currentPackage)
+                SessionStore.end(this, currentPackage, System.currentTimeMillis())
             }
 
             packageName = newPackage
             appName = intent.getStringExtra("appName") ?: newPackage
             maxSeconds = intent.getIntExtra("maxMinutes", 20) * 60
-            savedPackageName = packageName
-            savedAppName = appName
-            savedMaxSeconds = maxSeconds
-            savedStartTimeMs = System.currentTimeMillis()
+            startTimeMs = System.currentTimeMillis()
+            restored = false
+            SessionStore.start(this, packageName, appName, startTimeMs, maxSeconds)
             isRunning = true
             currentPackage = packageName
             Log.d("PausaTimer", "started — pkg: $packageName / maxSeconds: $maxSeconds")
         } else {
-            // Android restarted the service after kill — restore from static fields
-            packageName = savedPackageName
-            appName = savedAppName
-            maxSeconds = savedMaxSeconds
-            if (packageName.isEmpty()) {
-                stopSelf()
+            // Reinicio tras morir el proceso (intent nulo de START_STICKY, o petición
+            // de restauración del servicio de accesibilidad): recuperar del disco.
+            val saved = SessionStore.load(this)
+            if (saved == null) {
+                if (!isRunning) stopSelf()
                 return START_NOT_STICKY
             }
+            if (isRunning && currentPackage == saved.packageName) {
+                Log.d("PausaTimer", "restore — ya en marcha para ${saved.packageName}")
+                return START_STICKY
+            }
+            packageName = saved.packageName
+            appName = saved.appName
+            maxSeconds = saved.maxSeconds
+            startTimeMs = saved.startMs
+            restored = true
             isRunning = true
             currentPackage = packageName
-            Log.d("PausaTimer", "restarted by Android — pkg: $packageName / elapsed: ${elapsedSeconds()}s")
+            PausaAccessibilityService.restoreSession(packageName)
+            Log.d("PausaTimer", "restaurada del disco — pkg: $packageName / elapsed: ${elapsedSeconds()}s / max: ${maxSeconds}s")
         }
 
         createNotificationChannel()
         val initialRemaining = (maxSeconds - elapsedSeconds()).coerceAtLeast(0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                buildNotification(initialRemaining),
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    buildNotification(initialRemaining),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
+            }
+        } catch (e: Exception) {
+            // Al restaurar desde segundo plano Android puede negar el primer plano.
+            // El temporizador sigue igualmente: el proceso lo mantienen vivo el
+            // servicio de accesibilidad y el keepalive.
+            Log.e("PausaTimer", "startForeground falló (restored=$restored): $e")
         }
 
         handler.removeCallbacks(timerRunnable)
@@ -154,7 +174,7 @@ class PausaTimerService : Service() {
 
     /** Wall-clock elapsed seconds — accurate across kill/restart cycles. */
     private fun elapsedSeconds(): Int {
-        val start = savedStartTimeMs
+        val start = startTimeMs
         if (start == 0L) return 0
         return ((System.currentTimeMillis() - start) / 1000).toInt()
     }
@@ -269,10 +289,24 @@ class PausaTimerService : Service() {
         }
     }
 
+    /**
+     * Comprobación estricta para sesiones restauradas: pantalla activa y el
+     * último evento de primer plano es de esta app y sigue delante.
+     */
+    private fun isConfirmedInForeground(): Boolean {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isInteractive) return false
+        return ForegroundHelper.lastForegroundPackage(this) == packageName
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d("PausaTimer", "onDestroy for $packageName")
         handler.removeCallbacks(timerRunnable)
+        if (packageName.isNotEmpty()) {
+            // Sesión restaurada: contar solo hasta el último latido conocido.
+            SessionStore.end(this, packageName, if (restored) null else System.currentTimeMillis())
+        }
         PausaAccessibilityService.endSession(packageName)
         instance = null
         isRunning = false

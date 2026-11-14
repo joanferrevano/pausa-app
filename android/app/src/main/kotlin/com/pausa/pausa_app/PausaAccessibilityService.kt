@@ -175,6 +175,13 @@ class PausaAccessibilityService : AccessibilityService() {
             }
         }
 
+        /** Vuelve a marcar una sesión recuperada del disco, sin tocar el estado de expulsión. */
+        fun restoreSession(packageName: String) {
+            activeSessionApps.add(packageName)
+            pendingIntercepts.remove(packageName)
+            activeTimerPackage = packageName
+        }
+
         fun endSession(packageName: String) {
             activeSessionApps.remove(packageName)
             expelledApps.remove(packageName)
@@ -399,6 +406,10 @@ class PausaAccessibilityService : AccessibilityService() {
         } else {
             Log.d("PausaDebug", "onServiceConnected — timer active for ${PausaTimerService.currentPackage}, preserving session state")
         }
+        // ── Step 4: recuperar la sesión guardada en disco si el proceso murió con
+        //            una sesión en marcha (después de clearAll para no borrarla).
+        restorePersistedSession()
+
         // Sentinel value — guarantees the first poller tick calls handleAppChange for
         // whatever app is currently in foreground, even if it was already there before
         // the service connected (e.g. TikTok open in background when PAUSA was closed).
@@ -415,6 +426,31 @@ class PausaAccessibilityService : AccessibilityService() {
         }
         registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
         handler.post(foregroundPoller)
+    }
+
+    private fun restorePersistedSession() {
+        val saved = SessionStore.load(this) ?: return
+        if (PausaTimerService.isRunning) {
+            // El temporizador ya volvió por su cuenta (START_STICKY).
+            if (PausaTimerService.currentPackage == saved.packageName) restoreSession(saved.packageName)
+            return
+        }
+        val interactive = (getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).isInteractive
+        val front = ForegroundHelper.lastForegroundPackage(this)
+        if (!interactive || front != saved.packageName) {
+            // No se puede confirmar que la app siga delante: se cierra la sesión
+            // sin expulsar, contando el uso solo hasta el último latido.
+            Log.d("PausaDebug", "sesión guardada de ${saved.packageName} NO restaurada (delante: $front / pantalla activa: $interactive)")
+            SessionStore.end(this, saved.packageName, null)
+            return
+        }
+        Log.d("PausaDebug", "restaurando sesión de ${saved.packageName} (inicio ${saved.startMs}, máx ${saved.maxSeconds}s)")
+        restoreSession(saved.packageName)
+        try {
+            startService(Intent(this, PausaTimerService::class.java).putExtra("restore", true))
+        } catch (e: Exception) {
+            Log.e("PausaDebug", "no se pudo arrancar el temporizador al restaurar: $e")
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
