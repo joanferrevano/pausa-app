@@ -49,6 +49,34 @@ class AccessibilityService {
     } catch (_) {}
   }
 
+  /// Versión de Android (API). 0 si no se puede saber.
+  static Future<int> sdkInt() async {
+    try {
+      return await _channel.invokeMethod<int>('sdkInt') ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static Future<bool> areNotificationsEnabled() async {
+    try {
+      return await _channel.invokeMethod<bool>('areNotificationsEnabled') ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Pide el permiso de notificaciones: diálogo del sistema en Android 13+
+  /// o, si el sistema ya no lo muestra, los ajustes de notificaciones.
+  static Future<bool> requestNotifications() async {
+    try {
+      return await _channel.invokeMethod<bool>('requestNotifications') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> openSettings() async {
     try {
       await _channel.invokeMethod('openAccessibilitySettings');

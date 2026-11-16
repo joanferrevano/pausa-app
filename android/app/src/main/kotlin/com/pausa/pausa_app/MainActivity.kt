@@ -18,6 +18,11 @@ class MainActivity : FlutterActivity() {
     private val channel = "com.pausa.pausa_app/usage_stats"
     private val accessibilityChannel = "com.pausa.pausa_app/accessibility"
 
+    private companion object {
+        const val REQUEST_NOTIFICATIONS = 4101
+        const val KEY_NOTIF_DIALOG_BLOCKED = "notif_dialog_blocked"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PausaKeepaliveService.start(this)
@@ -145,6 +150,15 @@ class MainActivity : FlutterActivity() {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         result.success(null)
                     }
+                    "sdkInt" -> {
+                        result.success(Build.VERSION.SDK_INT)
+                    }
+                    "areNotificationsEnabled" -> {
+                        result.success(areNotificationsEnabled())
+                    }
+                    "requestNotifications" -> {
+                        requestNotifications(result)
+                    }
                     "syncPausas" -> {
                         val pausasList = call.argument<List<Map<String, Any>>>("pausas") ?: emptyList()
                         val json = JSONArray(pausasList).toString()
@@ -164,6 +178,73 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // ── Notificaciones ────────────────────────────────────────────────────────
+
+    private var pendingNotificationResult: MethodChannel.Result? = null
+
+    private fun areNotificationsEnabled(): Boolean =
+        androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
+
+    /**
+     * Pide el permiso de notificaciones. En Android 13+ muestra el diálogo del
+     * sistema mientras el sistema lo permita; cuando ya no lo muestra (denegado
+     * dos veces) o en versiones anteriores, abre los ajustes de notificaciones
+     * de Pausa. Responde true solo si quedan concedidas en el momento.
+     */
+    private fun requestNotifications(result: MethodChannel.Result) {
+        if (areNotificationsEnabled()) {
+            result.success(true)
+            return
+        }
+        val prefs = getSharedPreferences("pausa_prefs", MODE_PRIVATE)
+        val dialogBlocked = prefs.getBoolean(KEY_NOTIF_DIALOG_BLOCKED, false)
+        if (Build.VERSION.SDK_INT >= 33 && !dialogBlocked && pendingNotificationResult == null) {
+            pendingNotificationResult = result
+            requestPermissions(
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_NOTIFICATIONS
+            )
+        } else {
+            openNotificationSettings()
+            result.success(false)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_NOTIFICATIONS) return
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted && Build.VERSION.SDK_INT >= 33 &&
+            !shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
+            // El sistema ya no volverá a mostrar el diálogo: la próxima vez se
+            // abren directamente los ajustes.
+            getSharedPreferences("pausa_prefs", MODE_PRIVATE).edit()
+                .putBoolean(KEY_NOTIF_DIALOG_BLOCKED, true).apply()
+        }
+        pendingNotificationResult?.success(granted)
+        pendingNotificationResult = null
+    }
+
+    private fun openNotificationSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startActivity(
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                )
+            } else {
+                openAppDetails()
+            }
+        } catch (e: Exception) {
+            openAppDetails()
+        }
     }
 
     // Xiaomi, Redmi y POCO (MIUI / HyperOS) matan el proceso al limpiar recientes

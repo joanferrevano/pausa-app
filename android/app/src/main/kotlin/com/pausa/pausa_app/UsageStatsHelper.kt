@@ -141,7 +141,35 @@ object UsageStatsHelper {
     fun getUnproductiveTimeMs(context: Context): Long =
         getTodayUsageMap(context).filter { isUnproductive(context, it.key) }.values.sum()
 
+    /**
+     * Permiso de "Acceso al uso". Se pregunta a AppOps, que es quien lo sabe:
+     * mirar si hay estadísticas falla en un móvil recién encendido o sin uso
+     * reciente (vacío con el permiso concedido). Si AppOps falla, se cae a la
+     * comprobación antigua.
+     */
     fun hasPermission(context: Context): Boolean {
+        try {
+            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            val op = android.app.AppOpsManager.OPSTR_GET_USAGE_STATS
+            val uid = android.os.Process.myUid()
+            @Suppress("DEPRECATION")
+            val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                appOps.unsafeCheckOpNoThrow(op, uid, context.packageName)
+            } else {
+                appOps.checkOpNoThrow(op, uid, context.packageName)
+            }
+            return if (mode == android.app.AppOpsManager.MODE_DEFAULT) {
+                context.checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) ==
+                    PackageManager.PERMISSION_GRANTED
+            } else {
+                mode == android.app.AppOpsManager.MODE_ALLOWED
+            }
+        } catch (e: Exception) {
+            return hasUsageData(context)
+        }
+    }
+
+    private fun hasUsageData(context: Context): Boolean {
         return try {
             val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
