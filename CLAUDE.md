@@ -44,7 +44,8 @@ Dos mitades que se comunican por `MethodChannel`:
 ## Estado conocido / gotchas
 
 - Rutinas y Bloqueos son solo UI: no imponen bloqueo real. La pestaña "Bloqueos" placeholder y el icono de ajustes del dashboard están sin implementar.
-- `register_screen` es una maqueta (sin autenticación real).
+- `register_screen` es una maqueta (sin autenticación real) y no tiene ruta: se conserva sin usar para cuando haya registro real. No borrarla.
+- El onboarding termina en `permissions_screen.dart` (`/onboarding/permisos`); la misma pantalla se abre desde los avisos del Inicio con "Revisar permisos" (`/permisos`). El permiso de notificaciones se pide por el canal nativo (`requestNotifications`), sin paquetes.
 - minSdk real es Android 7.0 (el README dice 5.0, desactualizado).
 - Hay listas de paquetes hardcodeadas (launchers/allowlist en Kotlin; subcadenas de paquetes "improductivos" en Dart) que definen qué se ignora o clasifica.
 - Permisos requeridos en runtime: Accesibilidad y Acceso al uso. La app no tiene permiso de internet (Google Fonts no cargará en release).
@@ -64,4 +65,4 @@ Dos mitades que se comunican por `MethodChannel`:
 - Saltar el bloqueo da 5 minutos extra; no reinicia el contador del día.
 - Subir el máximo desbloquea sin diálogo: aceptado por ahora (lo cerrará el "Modo extremo", ver AUDITORIA.md).
 - Rutinas y Bloqueos: se muestran como "Próximamente" hasta implementarlos de verdad.
-- Registro: se sustituye por una pantalla de permisos al final del onboarding.
+- Registro: sustituido por una pantalla de permisos al final del onboarding. Se puede continuar sin permisos, con aviso. En Xiaomi el paso de inicio automático va antes que accesibilidad y lo marca el usuario a mano.

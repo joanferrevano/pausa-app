@@ -7,7 +7,7 @@ import '../features/onboarding/screens/form_screen.dart';
 import '../features/onboarding/screens/calculating_screen.dart';
 import '../features/onboarding/screens/result_screen.dart';
 import '../features/onboarding/screens/upsell_screen.dart';
-import '../features/auth/screens/register_screen.dart';
+import '../features/onboarding/screens/permissions_screen.dart';
 import '../features/home/screens/home_screen.dart';
 
 class PausaRouter {
@@ -62,11 +62,21 @@ class PausaRouter {
         ),
       ),
 
-      // Auth
+      // Permisos: último paso del onboarding. Sustituye a la pantalla de
+      // registro (features/auth/screens/register_screen.dart), que se conserva
+      // sin ruta hasta que haya registro real.
       GoRoute(
-        path: '/registro',
-        name: 'registro',
-        builder: (context, state) => const RegisterScreen(),
+        path: '/onboarding/permisos',
+        name: 'permisos',
+        builder: (context, state) =>
+            const PermissionsScreen(fromOnboarding: true),
+      ),
+      // La misma pantalla, abierta desde los avisos del Inicio.
+      GoRoute(
+        path: '/permisos',
+        name: 'revisar-permisos',
+        builder: (context, state) =>
+            const PermissionsScreen(fromOnboarding: false),
       ),
 
       // App principal

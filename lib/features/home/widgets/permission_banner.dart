@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/usage_stats_service.dart';
+import '../../../core/widgets/accessibility_warning.dart';
 
 const _bgColor = Color(0xFF2A1F0A);
 const _amberColor = Color(0xFFEFB84A);
@@ -18,39 +20,40 @@ class PermissionBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _amberColor, width: 0.5),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.bar_chart_rounded, color: _amberColor, size: 18),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Activa el permiso de uso para ver tus estadísticas reales',
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                color: _amberColor,
-                height: 1.4,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: UsageStatsService.openSettings,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _amberColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Activar',
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
+          Row(
+            children: [
+              const Icon(Icons.bar_chart_rounded, color: _amberColor, size: 18),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Activa el permiso de uso para ver tus estadísticas reales',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: _amberColor,
+                    height: 1.4,
+                  ),
                 ),
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              const BannerButton(
+                label: 'Activar',
+                onTap: UsageStatsService.openSettings,
+                filled: true,
+              ),
+              BannerButton(
+                label: 'Revisar permisos',
+                onTap: () => context.pushNamed('revisar-permisos'),
+              ),
+            ],
           ),
         ],
       ),

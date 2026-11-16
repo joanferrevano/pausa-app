@@ -12,6 +12,10 @@ Future<void> _completeOnboarding(BuildContext context) async {
   if (context.mounted) context.goNamed('home');
 }
 
+/// SIN USAR: esta pantalla no tiene ruta. Era una maqueta (los botones no
+/// autentican nada) y el final del onboarding es ahora la pantalla de permisos
+/// (features/onboarding/screens/permissions_screen.dart). Se conserva para
+/// reutilizarla cuando haya registro real con Google o email.
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
 
@@ -162,26 +166,9 @@ class RegisterScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 24),
-
-              // Legal — centered
-              FadeSlideIn(
-                delay: const Duration(milliseconds: 560),
-                duration: const Duration(milliseconds: 400),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    'Al continuar aceptas nuestros Términos de uso\ny Política de privacidad.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 11,
-                      color: PausaColors.textMuted,
-                      height: 1.6,
-                    ),
-                  ),
-                ),
-              ),
-
+              // El texto legal ("aceptas nuestros Términos de uso y Política
+              // de privacidad") se quitó: esos documentos no existen. Volver
+              // a ponerlo solo cuando existan y se enlacen.
               const SizedBox(height: 40),
             ],
           ),

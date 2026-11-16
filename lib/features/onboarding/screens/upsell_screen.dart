@@ -113,7 +113,7 @@ class UpsellScreen extends StatelessWidget {
                 duration: const Duration(milliseconds: 400),
                 child: PausaPrimaryButton(
                   label: 'Quiero recuperar $aniosRecuperables años',
-                  onTap: () => context.goNamed('registro'),
+                  onTap: () => context.goNamed('permisos'),
                 ),
               ),
 
@@ -124,7 +124,7 @@ class UpsellScreen extends StatelessWidget {
                 delay: const Duration(milliseconds: 640),
                 duration: const Duration(milliseconds: 400),
                 child: PressableFeedback(
-                  onTap: () => context.goNamed('registro'),
+                  onTap: () => context.goNamed('permisos'),
                   child: SizedBox(
                     width: double.infinity,
                     child: Text(

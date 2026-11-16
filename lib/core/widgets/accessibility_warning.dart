@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../shared/providers/accessibility_provider.dart';
 import '../services/accessibility_service.dart';
@@ -59,6 +60,7 @@ class _AccessibilityWarningState extends ConsumerState<AccessibilityWarning>
           ref.read(accessibilityProvider.notifier).openSettings(),
       onOpenAutostart: AccessibilityService.openAutostartSettings,
       onOpenAppDetails: AccessibilityService.openAppDetails,
+      onReviewPermissions: () => context.pushNamed('revisar-permisos'),
     );
   }
 }
@@ -72,7 +74,11 @@ class AccessibilityWarningCard extends StatelessWidget {
     required this.onOpenAccessibility,
     required this.onOpenAutostart,
     required this.onOpenAppDetails,
+    this.onReviewPermissions,
   });
+
+  /// Abre la pantalla con todos los permisos. Sin él no sale el botón.
+  final VoidCallback? onReviewPermissions;
 
   /// true: desactivada en Ajustes. false: activada pero sin funcionar.
   final bool disabled;
@@ -160,6 +166,11 @@ class AccessibilityWarningCard extends StatelessWidget {
                 BannerButton(
                   label: 'Ficha de la app',
                   onTap: onOpenAppDetails,
+                ),
+              if (onReviewPermissions != null)
+                BannerButton(
+                  label: 'Revisar permisos',
+                  onTap: onReviewPermissions!,
                 ),
             ],
           ),
