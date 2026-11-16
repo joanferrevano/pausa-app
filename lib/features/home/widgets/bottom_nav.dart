@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 
 const _labels = ['Inicio', 'Pausas', 'Rutinas', 'Bloqueos'];
-const _icons = [
+const navIcons = [
   Icons.home_outlined,
   Icons.hourglass_bottom_rounded,
   Icons.nights_stay_rounded,
@@ -37,7 +37,7 @@ class BottomNav extends StatelessWidget {
             children: List.generate(
               4,
               (i) => Expanded(child: _NavItem(
-                icon: _icons[i],
+                icon: navIcons[i],
                 label: _labels[i],
                 active: selectedIndex == i,
                 onTap: () => onTap(i),

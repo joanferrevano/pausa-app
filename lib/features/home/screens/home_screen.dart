@@ -4,8 +4,12 @@ import '../../../app/theme.dart';
 import '../widgets/dashboard_tab.dart';
 import '../widgets/bottom_nav.dart';
 import '../../pausas/screens/pausas_screen.dart';
-import '../../rutinas/screens/rutinas_screen.dart';
-import '../../bloqueos/screens/bloqueos_screen.dart';
+import '../../../core/widgets/coming_soon_view.dart';
+// Rutinas y Bloqueos no bloquean nada todavía: se muestran como "Próximamente".
+// El código de las pantallas sigue en su carpeta; para volver a mostrarlas,
+// descomentar estos imports y devolverlas en _buildTab (casos 2 y 3).
+// import '../../rutinas/screens/rutinas_screen.dart';
+// import '../../bloqueos/screens/bloqueos_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,9 +30,19 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const PausasScreen();
       case 2:
-        return const RutinasScreen();
+        // return const RutinasScreen();
+        return ComingSoonView(
+          icon: navIcons[2],
+          title: 'Rutinas',
+          description: 'Bloquea apps según el horario que elijas.',
+        );
       case 3:
-        return const BloqueosScreen();
+        // return const BloqueosScreen();
+        return ComingSoonView(
+          icon: navIcons[3],
+          title: 'Bloqueos',
+          description: 'Bloquea apps durante un tiempo, sin poder entrar.',
+        );
       default:
         return Center(
           child: Text(
