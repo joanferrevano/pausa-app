@@ -140,7 +140,15 @@ class PausaInterstitialActivity : Activity() {
         }
 
         val subtitleView = TextView(this).apply {
-            text = "Tómate un momento antes de entrar."
+            text = if (maxMinutes > 0) {
+                val left = SessionStore.remainingSecondsToday(
+                    this@PausaInterstitialActivity, packageName, maxMinutes
+                )
+                val leftText = if (left >= 60) "${left / 60} min" else "$left s"
+                "Te quedan $leftText de hoy."
+            } else {
+                "Tómate un momento antes de entrar."
+            }
             textSize = 14f
             setTextColor(Color.parseColor("#888888"))
             gravity = Gravity.CENTER

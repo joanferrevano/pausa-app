@@ -70,6 +70,25 @@ class PausaAccessibilityService : AccessibilityService() {
         lastForegroundPackage = ""
     }
 
+    private var lastBlockedToastMs = 0L
+
+    /** Aviso al abrir una app con el tiempo de hoy agotado (como mucho uno cada 5 s). */
+    private fun showBlockedToast(pkg: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastBlockedToastMs < 5000L) return
+        lastBlockedToastMs = now
+        val name = getPausaForPackage(pkg)?.first ?: return
+        try {
+            android.widget.Toast.makeText(
+                applicationContext,
+                "Has agotado tu tiempo de $name por hoy",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        } catch (e: Exception) {
+            Log.e("PausaDebug", "no se pudo mostrar el aviso de bloqueo: $e")
+        }
+    }
+
     // Polls UsageStats every second as a backup — catches resumptions that
     // don't fire a strong enough AccessibilityEvent (e.g. task resume).
     private val foregroundPoller = object : Runnable {
@@ -109,6 +128,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 if (current != lastForegroundPackage) {
                     Log.d("PausaDebug", "poller — daily cooldown active for $current, sending home")
                 }
+                showBlockedToast(current)
                 startActivity(Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -231,15 +251,14 @@ class PausaAccessibilityService : AccessibilityService() {
             if (appContext == null) {
                 Log.e("PausaDebug", "markExpelled — appContext is NULL, cannot persist expelled state!")
             } else {
-                val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
-                    .format(java.util.Date())
+                // El bloqueo del resto del día ya no es una marca aparte: sale del
+                // uso acumulado (ver isInDailyCooldown).
                 appContext!!.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
                     .edit()
                     .putString("last_expelled_pkg", packageName)
                     .putLong("last_expelled_ms", lastExpelledTimeMs)
-                    .putString("expelled_day_$packageName", today)
                     .apply()
-                Log.d("PausaDebug", "markExpelled — persisted to prefs OK, stored expulsion day: $today for $packageName")
+                Log.d("PausaDebug", "markExpelled — persisted to prefs OK for $packageName")
             }
             activeSessionApps.remove(packageName)
             expelledApps[packageName] = System.currentTimeMillis() + 30000L // 30s window
@@ -280,11 +299,17 @@ class PausaAccessibilityService : AccessibilityService() {
             return result
         }
 
-        fun resetDailyCooldown(packageName: String) {
-            appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
-                ?.edit()
-                ?.remove("expelled_day_$packageName")
-                ?.apply()
+        /**
+         * Saltar el bloqueo desde Pausa: concede 5 minutos extra hoy. No reinicia
+         * el contador de uso del día.
+         */
+        fun resetDailyCooldown(context: Context, packageName: String) {
+            val maxMinutes = SessionStore.configuredMaxMinutes(context, packageName) ?: 0
+            if (maxMinutes > 0) {
+                SessionStore.grantExtraToday(
+                    context, packageName, maxMinutes, SessionStore.SKIP_EXTRA_SECONDS
+                )
+            }
             // Also clear the expelled state so the user can enter immediately
             expelledApps.remove(packageName)
             if (lastExpelledPackage == packageName) {
@@ -296,19 +321,19 @@ class PausaAccessibilityService : AccessibilityService() {
                     ?.remove("last_expelled_ms")
                     ?.apply()
             }
-            Log.d("PausaDebug", "resetDailyCooldown — cooldown cleared for $packageName")
+            Log.d("PausaDebug", "resetDailyCooldown — 5 min extra para $packageName")
         }
 
-        fun isInDailyCooldown(packageName: String): Boolean {
-            val prefs = appContext?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
-                ?: return false
-            val expelledDay = prefs.getString("expelled_day_$packageName", "") ?: ""
-            if (expelledDay.isEmpty()) return false
-            val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
-                .format(java.util.Date())
-            val result = expelledDay == today
-            Log.d("PausaDebug", "isInDailyCooldown($packageName) — expelledDay=$expelledDay today=$today result=$result")
-            return result
+        /**
+         * Bloqueada por hoy: lo usado hoy ha alcanzado el máximo actual de la
+         * pausa (más el extra de saltar el bloqueo). Se calcula cada vez, así
+         * que cambiar el máximo o el cambio de día se aplican solos.
+         */
+        fun isInDailyCooldown(packageName: String, context: Context? = appContext): Boolean {
+            val ctx = context ?: return false
+            val maxMinutes = SessionStore.configuredMaxMinutes(ctx, packageName) ?: return false
+            if (maxMinutes <= 0) return false // sin límite
+            return SessionStore.remainingSecondsToday(ctx, packageName, maxMinutes) <= 0
         }
 
         // Call from onServiceConnected to wipe stale state after a service restart.

@@ -2,6 +2,7 @@ package com.pausa.pausa_app
 
 import android.content.Context
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -9,8 +10,10 @@ import java.util.Locale
  * Sesión en curso guardada en disco (pausa_prefs) para que sobreviva a que
  * el sistema mate el proceso, más el uso acumulado por app y día.
  *
- * El acumulado diario (`used_seconds_<yyyyMMdd>_<paquete>`) todavía no se usa
- * para limitar: es la base del límite diario acumulado decidido en CLAUDE.md.
+ * Límite diario acumulado: una app está bloqueada hoy cuando lo usado hoy
+ * (`used_seconds_<yyyyMMdd>_<paquete>`) alcanza el máximo configurado más el
+ * extra concedido hoy al saltar el bloqueo (`extra_seconds_<yyyyMMdd>_<paquete>`).
+ * Las claves llevan el día, así que el contador se reinicia solo a medianoche.
  */
 object SessionStore {
 
@@ -23,6 +26,9 @@ object SessionStore {
         val lastSeenMs: Long,
     )
 
+    /** Tiempo que concede saltar el bloqueo desde Pausa. */
+    const val SKIP_EXTRA_SECONDS = 5 * 60
+
     private const val PREFS = "pausa_prefs"
     private const val KEY_PKG = "session_pkg"
     private const val KEY_APP_NAME = "session_app_name"
@@ -30,12 +36,24 @@ object SessionStore {
     private const val KEY_MAX_SECONDS = "session_max_seconds"
     private const val KEY_LAST_SEEN_MS = "session_last_seen_ms"
     private const val USED_PREFIX = "used_seconds_"
+    private const val EXTRA_PREFIX = "extra_seconds_"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     private fun day(ms: Long): String =
         SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(ms))
+
+    fun isSameDay(aMs: Long, bMs: Long): Boolean = day(aMs) == day(bMs)
+
+    /** Las 00:00 del día de [ms]. */
+    fun startOfDay(ms: Long): Long = Calendar.getInstance().apply {
+        timeInMillis = ms
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 
     /** Guarda una sesión nueva (sustituye a la que hubiera). */
     fun start(context: Context, packageName: String, appName: String, startMs: Long, maxSeconds: Int) {
@@ -82,8 +100,7 @@ object SessionStore {
         val end = endMs ?: s.lastSeenMs
         val used = ((end - s.startMs) / 1000L).coerceIn(0L, s.maxSeconds.toLong()).toInt()
         val p = prefs(context)
-        val dayPrefix = USED_PREFIX + day(s.startMs) + "_"
-        val usedKey = dayPrefix + s.packageName
+        val usedKey = USED_PREFIX + day(s.startMs) + "_" + s.packageName
         val editor = p.edit()
             .remove(KEY_PKG)
             .remove(KEY_APP_NAME)
@@ -91,9 +108,14 @@ object SessionStore {
             .remove(KEY_MAX_SECONDS)
             .remove(KEY_LAST_SEEN_MS)
             .putInt(usedKey, p.getInt(usedKey, 0) + used)
-        // Los acumulados de otros días ya no sirven.
+        // Los acumulados y extras de otros días ya no sirven.
+        val keepDays = setOf(day(s.startMs), day(System.currentTimeMillis()))
         for (key in p.all.keys) {
-            if (key.startsWith(USED_PREFIX) && !key.startsWith(dayPrefix)) editor.remove(key)
+            for (prefix in listOf(USED_PREFIX, EXTRA_PREFIX)) {
+                if (key.startsWith(prefix) && keepDays.none { key.startsWith(prefix + it + "_") }) {
+                    editor.remove(key)
+                }
+            }
         }
         editor.apply()
     }
@@ -101,4 +123,45 @@ object SessionStore {
     /** Segundos de sesión acumulados hoy para [packageName] (sin la sesión en curso). */
     fun usedSecondsToday(context: Context, packageName: String): Int =
         prefs(context).getInt(USED_PREFIX + day(System.currentTimeMillis()) + "_" + packageName, 0)
+
+    private fun extraSecondsToday(context: Context, packageName: String): Int =
+        prefs(context).getInt(EXTRA_PREFIX + day(System.currentTimeMillis()) + "_" + packageName, 0)
+
+    /**
+     * Segundos que le quedan hoy a [packageName] con un máximo de [maxMinutes]
+     * (sin descontar la sesión en curso). Nunca negativo.
+     */
+    fun remainingSecondsToday(context: Context, packageName: String, maxMinutes: Int): Int =
+        (maxMinutes * 60 + extraSecondsToday(context, packageName) -
+            usedSecondsToday(context, packageName)).coerceAtLeast(0)
+
+    /**
+     * Saltar el bloqueo: deja exactamente [seconds] disponibles hoy sin tocar
+     * el contador de uso. Si aún quedaba más que eso, no hace nada.
+     */
+    fun grantExtraToday(context: Context, packageName: String, maxMinutes: Int, seconds: Int) {
+        if (remainingSecondsToday(context, packageName, maxMinutes) >= seconds) return
+        val extra = usedSecondsToday(context, packageName) + seconds - maxMinutes * 60
+        prefs(context).edit()
+            .putInt(EXTRA_PREFIX + day(System.currentTimeMillis()) + "_" + packageName, extra.coerceAtLeast(0))
+            .apply()
+    }
+
+    /**
+     * Máximo diario (minutos) de la pausa activa de [packageName] según la
+     * lista sincronizada desde Flutter. 0 = sin límite; null = sin pausa activa.
+     */
+    fun configuredMaxMinutes(context: Context, packageName: String): Int? {
+        val json = prefs(context).getString("pausas_list", "[]") ?: return null
+        return try {
+            val array = org.json.JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                if (obj.getString("packageName") == packageName && obj.getBoolean("isActive")) {
+                    return obj.getInt("maxMinutes")
+                }
+            }
+            null
+        } catch (e: Exception) { null }
+    }
 }

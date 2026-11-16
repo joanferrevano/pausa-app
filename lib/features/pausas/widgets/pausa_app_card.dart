@@ -66,7 +66,7 @@ class _PausaAppCardState extends ConsumerState<PausaAppCard> {
           style: GoogleFonts.dmSerifDisplay(color: const Color(0xFFF0F0F0)),
         ),
         content: Text(
-          'Llevas un rato sin esto y ya te rindes.\n\n¿De verdad quieres ser esclavo del algoritmo o puedes más que él?',
+          'Llevas un rato sin esto y ya te rindes.\n\n¿De verdad quieres ser esclavo del algoritmo o puedes más que él?\n\nSi sigues, tendrás solo 5 minutos más por hoy.',
           style: GoogleFonts.dmSans(color: const Color(0xFF888888), height: 1.5),
         ),
         actions: [
@@ -80,7 +80,7 @@ class _PausaAppCardState extends ConsumerState<PausaAppCard> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
-              'Sí, dame el chute',
+              'Dame 5 minutos',
               style: GoogleFonts.dmSans(
                 color: const Color(0xFFE24B4A),
                 fontWeight: FontWeight.w600,

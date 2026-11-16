@@ -22,6 +22,11 @@ class PausaTimerService : Service() {
 
     val timerRunnable: Runnable = object : Runnable {
         override fun run() {
+            // Cambio de día con la sesión abierta: el contador diario empieza de
+            // cero, así que la sesión sigue desde las 00:00 con el máximo de hoy.
+            if (!SessionStore.isSameDay(startTimeMs, System.currentTimeMillis()) && !rollOverToNewDay()) {
+                return
+            }
             val elapsed = elapsedSeconds()
             val remaining = maxSeconds - elapsed
 
@@ -118,9 +123,26 @@ class PausaTimerService : Service() {
                 SessionStore.end(this, currentPackage, System.currentTimeMillis())
             }
 
+            // Límite diario acumulado: la sesión dura lo que queda de hoy, no el
+            // máximo entero.
+            val remainingToday = SessionStore.remainingSecondsToday(
+                this, newPackage, intent.getIntExtra("maxMinutes", 20)
+            )
+            if (remainingToday <= 0) {
+                // No debería llegar aquí (el bloqueo diario corta antes), pero si
+                // llega no hay sesión que dar: el poller mandará la app al inicio.
+                Log.d("PausaTimer", "sin tiempo restante hoy para $newPackage — no se inicia sesión")
+                PausaAccessibilityService.endSession(newPackage)
+                packageName = ""
+                isRunning = false
+                currentPackage = ""
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
             packageName = newPackage
             appName = intent.getStringExtra("appName") ?: newPackage
-            maxSeconds = intent.getIntExtra("maxMinutes", 20) * 60
+            maxSeconds = remainingToday
             startTimeMs = System.currentTimeMillis()
             restored = false
             SessionStore.start(this, packageName, appName, startTimeMs, maxSeconds)
@@ -182,8 +204,37 @@ class PausaTimerService : Service() {
         return ((System.currentTimeMillis() - start) / 1000).toInt()
     }
 
+    /**
+     * La sesión ha cruzado la medianoche. Cierra la de ayer y la reabre desde
+     * las 00:00 con el máximo de hoy. Devuelve false si ya no hay nada que
+     * cronometrar (pausa borrada, desactivada o sin límite) y el servicio se para.
+     */
+    private fun rollOverToNewDay(): Boolean {
+        val now = System.currentTimeMillis()
+        SessionStore.end(this, packageName, now)
+        val maxMinutes = SessionStore.configuredMaxMinutes(this, packageName) ?: 0
+        val remaining = if (maxMinutes > 0) {
+            SessionStore.remainingSecondsToday(this, packageName, maxMinutes)
+        } else 0
+        if (remaining <= 0) {
+            Log.d("PausaTimer", "cambio de día — sin límite que aplicar a $packageName, se para")
+            handler.removeCallbacks(timerRunnable)
+            stopSelf()
+            return false
+        }
+        startTimeMs = SessionStore.startOfDay(now)
+        maxSeconds = remaining
+        SessionStore.start(this, packageName, appName, startTimeMs, maxSeconds)
+        SessionStore.heartbeat(this, now)
+        Log.d("PausaTimer", "cambio de día — sesión de $packageName reabierta con ${maxSeconds}s")
+        return true
+    }
+
     private fun expelUser() {
         Log.d("PausaTimer", "expelUser called for $packageName")
+        // Sumar el uso ya: el bloqueo diario se calcula con el acumulado y tiene
+        // que estar al día antes de que el usuario intente volver a entrar.
+        SessionStore.end(this, packageName, System.currentTimeMillis())
         PausaAccessibilityService.markExpelled(packageName)
 
         // ── Expulsion notification ────────────────────────────────────────────
@@ -205,7 +256,7 @@ class PausaTimerService : Service() {
         val expulsionNotification = NotificationCompat.Builder(this, expulsionChannelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setContentTitle("Tiempo agotado")
-            .setContentText("Has usado $displayName por hoy. Vuelve mañana.")
+            .setContentText("Has agotado tu tiempo de $displayName por hoy. Vuelve mañana.")
             .setAutoCancel(true)
             .build()
         nm.notify(packageName.hashCode(), expulsionNotification)
@@ -239,7 +290,7 @@ class PausaTimerService : Service() {
         val seconds = remainingSeconds % 60
         val timeText = if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("⏱ $appName — $timeText")
+            .setContentTitle("⏱ $appName — quedan $timeText hoy")
             .setContentText("PAUSA activo")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)

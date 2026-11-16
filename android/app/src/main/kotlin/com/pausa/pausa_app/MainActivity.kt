@@ -154,11 +154,11 @@ class MainActivity : FlutterActivity() {
                     }
                     "isInDailyCooldown" -> {
                         val pkg = call.argument<String>("packageName") ?: ""
-                        result.success(PausaAccessibilityService.isInDailyCooldown(pkg))
+                        result.success(PausaAccessibilityService.isInDailyCooldown(pkg, applicationContext))
                     }
                     "resetDailyCooldown" -> {
                         val pkg = call.argument<String>("packageName") ?: ""
-                        PausaAccessibilityService.resetDailyCooldown(pkg)
+                        PausaAccessibilityService.resetDailyCooldown(applicationContext, pkg)
                         result.success(null)
                     }
                     else -> result.notImplemented()

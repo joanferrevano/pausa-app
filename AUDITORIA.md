@@ -310,7 +310,8 @@ Nada de esto rompe el build hoy.
 
 ### 🟠 Importante
 
-- [ ] **Decidir el modelo de límite**: por sesión (actual) o acumulado diario. Si es diario, guardar minutos usados por paquete y día y descontarlos al iniciar sesión; si es por sesión, cambiar el texto "Has usado X por hoy". — `PausaTimerService.kt`, `PausaAccessibilityService.kt`
+- [x] **Decidir el modelo de límite**: por sesión (actual) o acumulado diario. Si es diario, guardar minutos usados por paquete y día y descontarlos al iniciar sesión; si es por sesión, cambiar el texto "Has usado X por hoy". — `PausaTimerService.kt`, `PausaAccessibilityService.kt`
+  - Hecho (16-11): límite diario acumulado. Cada sesión dura lo que queda del día (`SessionStore.remainingSecondsToday`). "Bloqueada hoy" ya no es una marca aparte (`expelled_day_` deja de usarse): se calcula como usado hoy ≥ máximo actual, así que cambiar el máximo se aplica en la siguiente apertura y el contador se reinicia solo a medianoche; una sesión que cruza las 00:00 sigue con el máximo del día nuevo. Con el tiempo agotado se manda al inicio sin cuenta atrás, con un aviso. Saltar el bloqueo da 5 minutos extra sin reiniciar el contador (`extra_seconds_<día>_<paquete>`), y el diálogo lo dice. La notificación, la pantalla de espera y el aviso de expulsión muestran el tiempo restante del día. El uso con "Sin límite" no se cuenta. Pendiente de probar en dispositivo.
 - [ ] **Pedir el permiso de notificaciones** en Android 13+ (canal nativo nuevo o `permission_handler`). — `MainActivity.kt`, `lib/core/services/accessibility_service.dart`, pantalla donde se pida
 - [ ] **Empaquetar las fuentes** DM Sans y DM Serif Display como assets y desactivar la descarga en tiempo de ejecución. — `pubspec.yaml`, `assets/fonts/`, `lib/main.dart`
 - [ ] **Pantalla de permisos al final del onboarding** (uso, accesibilidad, notificaciones, aviso de "ajustes restringidos") en lugar del registro falso. — `lib/features/auth/screens/register_screen.dart`, `lib/app/router.dart`, `lib/features/onboarding/screens/upsell_screen.dart`
@@ -334,6 +335,10 @@ Nada de esto rompe el build hoy.
 - [ ] **Unificar `_FadeSlide` y el efecto de pulsado** usando los widgets que ya existen. — los 14 archivos con `_down/_up/_cancel`, `lib/app/widgets/`
 - [ ] **Borrar código muerto**: los dos selectores sin uso, `getProductiveTimeMs`/`getUnproductiveTimeMs` en los tres niveles, `hasAnyData`, `pausa_logo.xml`, `_placeholderTabs`, parámetro `onboardingDone` del router, `TODO` de `build.gradle.kts:34`.
 - [ ] **Pantalla de ajustes** mínima (nombre, meta diaria, permisos, versión) y conectar el engranaje. — `lib/features/home/widgets/dashboard_tab.dart`, nueva pantalla, `lib/app/router.dart`
+- [ ] **Subir el máximo no debería servir de atajo.** Con el límite diario, subir el máximo de una pausa bloqueada la desbloquea sin pasar por el diálogo disuasorio (decidido el 16-11 dejarlo así por ahora). — `add_pausa_sheet.dart`, `pausas_provider.dart`
+- [ ] **"Modo extremo" en una nueva pantalla de Ajustes** (tarea futura, sin empezar).
+  - Fase 1: sin botón de saltar bloqueo; no se puede editar, borrar ni subir el máximo de una pausa bloqueada; desactivar el modo extremo tarda 24 h en aplicarse.
+  - Fase 2 (a valorar): impedir abrir los ajustes de accesibilidad y la ficha de Pausa, administrador de dispositivo contra la desinstalación, y detección de cambio de hora.
 - [ ] **Aviso un minuto antes de la expulsión.** — `PausaTimerService.kt`
 - [ ] **Refrescar el chip "Bloqueado hoy"** al volver a la app. — `lib/features/pausas/widgets/pausa_app_card.dart`
 - [ ] **Identificar las pausas por paquete o `id`** en vez de por posición. — `pausas_provider.dart`, `pausas_screen.dart`, `pausa_config.dart`

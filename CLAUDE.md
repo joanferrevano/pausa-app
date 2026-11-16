@@ -34,7 +34,7 @@ Dos mitades que se comunican por `MethodChannel`:
 **Kotlin (`android/app/src/main/kotlin/com/pausa/pausa_app/`)** — el bloqueo real ocurre aquí, no en Dart:
 - `PausaAccessibilityService`: detecta la app en primer plano (con un poller de 1 s), tiene la lista de apps bloqueadas, lanza la interstitial y gestiona expulsión, lockout post-expulsión y cooldown diario. Estado en memoria + `SharedPreferences("pausa_prefs")` (cooldown/expulsión por día natural).
 - `PausaInterstitialActivity`: countdown iniciado por el usuario; al terminar entrega la sesión a `PausaTimerService`.
-- `PausaTimerService`: aplica el tiempo máximo de sesión y expulsa solo con la pantalla activa y la app confirmada delante. Apagar la pantalla cierra la sesión y cancela la cuenta atrás (lo hace el servicio de accesibilidad). La sesión se guarda en disco con `SessionStore` (sesión en curso + segundos usados por app y día en `pausa_prefs`) y se restaura si matan el proceso; una sesión restaurada solo expulsa con la pantalla activa y la app confirmada delante.
+- `PausaTimerService`: aplica el límite diario acumulado (cada sesión dura lo que queda de hoy: máximo + extra − usado, en `SessionStore`) y expulsa solo con la pantalla activa y la app confirmada delante. Apagar la pantalla cierra la sesión y cancela la cuenta atrás (lo hace el servicio de accesibilidad). La sesión se guarda en disco con `SessionStore` (sesión en curso + segundos usados por app y día en `pausa_prefs`) y se restaura si matan el proceso; una sesión restaurada solo expulsa con la pantalla activa y la app confirmada delante.
 - `ForegroundHelper`: último evento de primer plano en una ventana larga; lo usa el servicio de accesibilidad al reconectar y la restauración de sesión.
 - `PausaKeepaliveService`: servicio foreground sticky que se reprograma al quitar la tarea (necesario en MIUI/Samsung/etc.).
 - `UsageStatsHelper`: agregación de uso (emparejado foreground, pantalla apagada, mínimo 60 s, top 10).
@@ -60,6 +60,8 @@ Dos mitades que se comunican por `MethodChannel`:
 - Responde en español.
 
 ## Decisiones de producto
-- Límite de uso: acumulado DIARIO por app (no por sesión).
+- Límite de uso: acumulado DIARIO por app (no por sesión). "Bloqueada hoy" se calcula (usado hoy ≥ máximo actual + extra), no hay marca guardada. Con el tiempo agotado no hay cuenta atrás: va directa al inicio.
+- Saltar el bloqueo da 5 minutos extra; no reinicia el contador del día.
+- Subir el máximo desbloquea sin diálogo: aceptado por ahora (lo cerrará el "Modo extremo", ver AUDITORIA.md).
 - Rutinas y Bloqueos: se muestran como "Próximamente" hasta implementarlos de verdad.
 - Registro: se sustituye por una pantalla de permisos al final del onboarding.
