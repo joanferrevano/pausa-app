@@ -332,7 +332,8 @@ Nada de esto rompe el build hoy.
 - [ ] **No ofrecer en el selector apps que el servicio ignora**, o quitar el filtro `com.android.*`. — `UsageStatsHelper.kt`, `PausaAccessibilityService.kt`
 - [x] **Receptor de `BOOT_COMPLETED`** que arranque el keepalive. — `AndroidManifest.xml`, nuevo `BootReceiver.kt`
   - Hecho: `BootReceiver` arranca el keepalive en `BOOT_COMPLETED` y `MY_PACKAGE_REPLACED`; permiso `RECEIVE_BOOT_COMPLETED` añadido al manifest. Probado en dispositivo el 14-11 (HyperOS 3, con "Inicio automático"): tras reiniciar el móvil, sin abrir Pausa, la pausa salta al abrir TikTok.
-- [ ] **Actualizar README y notas de la release**: Android 7.0+, bloqueo hasta medianoche, estado real de Rutinas/Bloqueos, permisos. — `README.md`, `NOTAS_RELEASE_v1.0.0-beta.md`, `pubspec.yaml`
+- [x] **Actualizar README y notas de la release**: Android 7.0+, bloqueo hasta medianoche, estado real de Rutinas/Bloqueos, permisos. — `README.md`, `NOTAS_RELEASE_v1.0.0-beta.md`, `pubspec.yaml`
+  - Hecho (16-11, con la v1.0.1-beta): README puesto al día (Android 7.0, pantalla de permisos, límite diario, bloqueo hasta medianoche, Rutinas/Bloqueos "Próximamente", Xiaomi/HyperOS con candado en recientes, solo rama `main`), nuevas `NOTAS_RELEASE_v1.0.1-beta.md`, versión mínima corregida en las notas de la v1.0.0 y `pubspec.yaml` en 1.0.1+2 con `min_sdk_android: 24`.
 - [ ] **Tests de los notifiers y modelos** (pausas, rutinas, bloqueos) con Hive en memoria. — `test/`
 - [ ] **Prueba manual en dispositivo de los puntos marcados "(sin probar en dispositivo)"**, empezando por los bugs 3, 4, 6 y 9, para confirmarlos antes de invertir tiempo.
 

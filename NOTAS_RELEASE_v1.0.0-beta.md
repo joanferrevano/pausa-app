@@ -29,4 +29,4 @@ pausa no envía tus datos a ningún sitio. Todo se queda en el móvil.
 Algunas capas cierran las apps en segundo plano y el bloqueo deja de funcionar. Tienes los pasos para cada marca en el [README](../../blob/main/README.md#3-configuración-específica-por-fabricante). En **Xiaomi/MIUI** es obligatorio activar Autostart y poner la batería en *Sin restricciones*.
 
 ## Requisitos
-Android 5.0 o superior.
+Android 7.0 o superior.

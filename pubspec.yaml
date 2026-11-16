@@ -1,7 +1,7 @@
 name: pausa_app
 description: "PAUSA - Recupera tu tiempo. Recupera tu vida."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -34,4 +34,4 @@ flutter_launcher_icons:
   image_path: "assets/icons/pausa_icon.png"
   adaptive_icon_background: "#0A0A0A"
   adaptive_icon_foreground: "assets/icons/pausa_icon_foreground.png"
-  min_sdk_android: 21
+  min_sdk_android: 24
