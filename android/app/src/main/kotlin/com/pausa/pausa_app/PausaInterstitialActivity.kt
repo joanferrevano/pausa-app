@@ -26,6 +26,15 @@ class PausaInterstitialActivity : Activity() {
     companion object {
         private var current: java.lang.ref.WeakReference<PausaInterstitialActivity>? = null
 
+        /**
+         * Paquete cuya pantalla de espera está visible ahora mismo (null si no
+         * hay ninguna). El servicio de accesibilidad lo usa para saber si el
+         * lanzamiento llegó a mostrarse y no relanzar encima de una visible.
+         */
+        @Volatile
+        var visiblePackage: String? = null
+            private set
+
         /** Pantalla apagada: cancela la cuenta atrás en curso (si la hay) y cierra. */
         fun cancelForScreenOff() {
             current?.get()?.cancelCountdownAndFinish()
@@ -265,6 +274,7 @@ class PausaInterstitialActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
+        visiblePackage = null
         // Cancel countdown — will restart from beginning on resume
         if (!countdownCompleted) {
             countDownTimer?.cancel()
@@ -274,6 +284,7 @@ class PausaInterstitialActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (!isFinishing && packageName.isNotEmpty()) visiblePackage = packageName
         // Always restart from beginning if countdown not completed
         // (salvo que ya se esté cerrando, p. ej. cancelada al apagar la pantalla)
         if (!countdownCompleted && !isFinishing) {
@@ -294,7 +305,10 @@ class PausaInterstitialActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (current?.get() === this) current = null
+        if (current?.get() === this) {
+            current = null
+            visiblePackage = null
+        }
         countDownTimer?.cancel()
     }
 }

@@ -67,7 +67,98 @@ class PausaAccessibilityService : AccessibilityService() {
         PausaTimerService.stopAll()
         sessions.forEach { endSession(it) }
         pendingIntercepts.clear()
+        stopWatchingInterstitial("pantalla apagada")
         lastForegroundPackage = ""
+    }
+
+    private fun launchInterstitial(pkg: String, pausaConfig: Triple<String, Int, Int>) {
+        startActivity(Intent(this, PausaInterstitialActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            putExtra("packageName", pkg)
+            putExtra("appName", pausaConfig.first)
+            putExtra("waitSeconds", pausaConfig.second)
+            putExtra("maxMinutes", pausaConfig.third)
+            putExtra("userInitiated", true)
+        })
+    }
+
+    // ── Vigilancia de la pantalla de espera ───────────────────────────────────
+    // Lanzar la pantalla de espera no garantiza que salga: HyperOS la deja
+    // detrás si el lanzamiento cae en plena animación de apertura de la app
+    // ("avoidMoveToFront by anim effect", visto en logcat el 16-11). Tras cada
+    // lanzamiento se comprueba que está visible y, si no, se reintenta; si a
+    // los 10 s sigue sin salir, se manda al inicio. La app nunca debe quedarse
+    // abierta sin pausa.
+    private var awaitingPkg = ""
+    private var awaitingSinceMs = 0L
+
+    private fun watchInterstitial(pkg: String) {
+        awaitingPkg = pkg
+        awaitingSinceMs = System.currentTimeMillis()
+        handler.removeCallbacks(interstitialWatchdog)
+        handler.postDelayed(interstitialWatchdog, INTERSTITIAL_FIRST_RETRY_MS)
+    }
+
+    private fun stopWatchingInterstitial(reason: String) {
+        if (awaitingPkg.isNotEmpty()) {
+            Log.d("PausaDebug", "vigilancia de la espera de $awaitingPkg terminada: $reason")
+        }
+        awaitingPkg = ""
+        handler.removeCallbacks(interstitialWatchdog)
+    }
+
+    private val interstitialWatchdog: Runnable = object : Runnable {
+        override fun run() {
+            val pkg = awaitingPkg
+            if (pkg.isEmpty()) return
+
+            // La espera ya está en pantalla (o ya terminó y hay sesión): hecho.
+            // No se relanza con la pantalla visible, así nunca hay dos a la vez
+            // ni se reinicia una cuenta atrás en marcha.
+            if (PausaInterstitialActivity.visiblePackage == pkg || isInActiveSession(pkg)) {
+                stopWatchingInterstitial("confirmada")
+                return
+            }
+            val interactive =
+                (getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).isInteractive
+            val config = getPausaForPackage(pkg)
+            if (!interactive || config == null || isExpelling ||
+                wasRecentlyExpelled(pkg) || isInDailyCooldown(pkg)) {
+                stopWatchingInterstitial("ya no aplica")
+                return
+            }
+
+            val front = ForegroundHelper.lastForegroundPackage(this@PausaAccessibilityService)
+            if (front != null && front != pkg) {
+                stopWatchingInterstitial("delante hay otra cosa ($front)")
+                return
+            }
+
+            val waited = System.currentTimeMillis() - awaitingSinceMs
+            if (waited >= INTERSTITIAL_GIVE_UP_MS) {
+                if (front == pkg) {
+                    Log.d("PausaDebug", "la espera de $pkg no ha salido en ${waited}ms — al inicio")
+                    if (!performGlobalAction(GLOBAL_ACTION_HOME)) {
+                        startActivity(Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                    }
+                    lastForegroundPackage = ""
+                }
+                stopWatchingInterstitial("tiempo agotado")
+                return
+            }
+
+            if (front == pkg) {
+                Log.d("PausaDebug", "la espera de $pkg no ha salido tras ${waited}ms — reintento")
+                launchInterstitial(pkg, config)
+            }
+            handler.postDelayed(this, INTERSTITIAL_RETRY_MS)
+        }
     }
 
     private var lastBlockedToastMs = 0L
@@ -161,18 +252,8 @@ class PausaAccessibilityService : AccessibilityService() {
                         val pausaConfig = getPausaForPackage(pkg) ?: continue
                         Log.d("PausaDebug", "PENDING intercept firing for $pkg")
                         lastForegroundPackage = pkg
-                        startActivity(Intent(this@PausaAccessibilityService,
-                            PausaInterstitialActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                            putExtra("packageName", pkg)
-                            putExtra("appName", pausaConfig.first)
-                            putExtra("waitSeconds", pausaConfig.second)
-                            putExtra("maxMinutes", pausaConfig.third)
-                            putExtra("userInitiated", true)
-                        })
+                        launchInterstitial(pkg, pausaConfig)
+                        watchInterstitial(pkg)
                     }
                 }
             }
@@ -186,6 +267,10 @@ class PausaAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val INTERSTITIAL_FIRST_RETRY_MS = 700L
+        private const val INTERSTITIAL_RETRY_MS = 1000L
+        private const val INTERSTITIAL_GIVE_UP_MS = 10_000L
+
         private val activeSessionApps = mutableSetOf<String>()
         private val expelledApps = mutableMapOf<String, Long>()
         // pkg -> deadline ms: packages waiting to be confirmed in foreground before intercept
@@ -546,6 +631,7 @@ class PausaAccessibilityService : AccessibilityService() {
         super.onDestroy()
         isConnected = false
         handler.removeCallbacks(foregroundPoller)
+        handler.removeCallbacks(interstitialWatchdog)
         pendingIntercepts.clear()
         try { unregisterReceiver(screenReceiver) } catch (e: Exception) {}
     }
