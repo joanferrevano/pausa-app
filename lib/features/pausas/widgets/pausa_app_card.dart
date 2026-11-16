@@ -33,7 +33,12 @@ class PausaAppCard extends ConsumerStatefulWidget {
   ConsumerState<PausaAppCard> createState() => _PausaAppCardState();
 }
 
-class _PausaAppCardState extends ConsumerState<PausaAppCard> {
+/// Se incrementa para que todas las tarjetas vuelvan a preguntar al nativo si
+/// su app está bloqueada hoy (p. ej. al tirar para refrescar).
+final cooldownRefreshProvider = StateProvider<int>((ref) => 0);
+
+class _PausaAppCardState extends ConsumerState<PausaAppCard>
+    with WidgetsBindingObserver {
   double _scale = 1.0;
   double _opacity = 1.0;
   bool _inCooldown = false;
@@ -41,6 +46,31 @@ class _PausaAppCardState extends ConsumerState<PausaAppCard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkCooldown();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // El bloqueo cambia fuera de Flutter (lo decide el servicio nativo mientras
+  // Pausa está en segundo plano), así que hay que volver a preguntar al volver.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    _checkCooldown();
+    // Al abrir Pausa el temporizador en curso se para unos instantes después
+    // y es entonces cuando se suma su uso: segunda mirada.
+    Future.delayed(const Duration(seconds: 1), _checkCooldown);
+  }
+
+  // Cambiar el máximo o activar/desactivar la pausa cambia el bloqueo.
+  @override
+  void didUpdateWidget(covariant PausaAppCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
     _checkCooldown();
   }
 
@@ -143,6 +173,7 @@ class _PausaAppCardState extends ConsumerState<PausaAppCard> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(cooldownRefreshProvider, (_, __) => _checkCooldown());
     return Dismissible(
       key: ValueKey(widget.config.packageName),
       direction: DismissDirection.endToStart,

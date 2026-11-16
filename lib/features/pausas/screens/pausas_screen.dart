@@ -58,6 +58,7 @@ class PausasScreen extends ConsumerWidget {
                       .map((p) => p.toMap())
                       .toList();
                   await AccessibilityService.syncPausas(pausasList);
+                  ref.read(cooldownRefreshProvider.notifier).state++;
                 },
                 child: pausas.isEmpty
                     ? _emptyWithBanner(context, ref, accessState)
