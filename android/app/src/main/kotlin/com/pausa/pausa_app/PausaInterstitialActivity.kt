@@ -2,7 +2,6 @@ package com.pausa.pausa_app
 
 import android.app.Activity
 import android.content.Intent
-import android.util.Log
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -43,7 +42,7 @@ class PausaInterstitialActivity : Activity() {
 
     private fun cancelCountdownAndFinish() {
         if (countdownCompleted) return
-        Log.d("PausaDebug", "PausaInterstitialActivity — pantalla apagada, cuenta atrás cancelada para $packageName")
+        PausaLog.d("PausaDebug", "PausaInterstitialActivity — pantalla apagada, cuenta atrás cancelada para $packageName")
         countDownTimer?.cancel()
         countDownTimer = null
         PausaAccessibilityService.endSession(packageName)
@@ -58,7 +57,7 @@ class PausaInterstitialActivity : Activity() {
         val pkg = intent.getStringExtra("packageName") ?: run { finish(); return }
         val isUserInitiated = intent.getBooleanExtra("userInitiated", false)
 
-        Log.d("PausaDebug", "PausaInterstitialActivity onCreate — pkg: $pkg" +
+        PausaLog.d("PausaDebug", "PausaInterstitialActivity onCreate — pkg: $pkg" +
             " / wasRecentlyExpelled: ${PausaAccessibilityService.wasRecentlyExpelled(pkg)}" +
             " / lastExpelledPkg: ${PausaAccessibilityService.lastExpelledPackage}" +
             " / lastExpelledMs: ${PausaAccessibilityService.lastExpelledTimeMs}" +
@@ -87,7 +86,7 @@ class PausaInterstitialActivity : Activity() {
         // Daily cooldown — if the user was expelled today, block for the rest of the day.
         // Resets automatically at midnight via date comparison (no explicit reset needed).
         if (PausaAccessibilityService.isInDailyCooldown(pkg)) {
-            Log.d("PausaDebug", "PausaInterstitialActivity — daily cooldown active for $pkg, sending home")
+            PausaLog.d("PausaDebug", "PausaInterstitialActivity — daily cooldown active for $pkg, sending home")
             startActivity(Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

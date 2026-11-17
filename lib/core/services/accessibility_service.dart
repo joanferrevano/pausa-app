@@ -104,12 +104,14 @@ class AccessibilityService {
   static Future<void> syncPausas(List<Map<String, dynamic>> pausas) async {
     try {
       await _channel.invokeMethod('syncPausas', {'pausas': pausas});
-      debugPrint('✅ Pausas synced to native: ${pausas.length} items');
-      for (final p in pausas) {
-        debugPrint('  → ${p['packageName']} active:${p['isActive']}');
+      if (kDebugMode) {
+        debugPrint('✅ Pausas synced to native: ${pausas.length} items');
+        for (final p in pausas) {
+          debugPrint('  → ${p['packageName']} active:${p['isActive']}');
+        }
       }
     } catch (e) {
-      debugPrint('❌ Sync failed: $e');
+      if (kDebugMode) debugPrint('❌ Sync failed: $e');
     }
   }
 }

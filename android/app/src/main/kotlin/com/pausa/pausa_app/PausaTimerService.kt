@@ -4,7 +4,6 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.os.*
-import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class PausaTimerService : Service() {
@@ -30,7 +29,7 @@ class PausaTimerService : Service() {
             val elapsed = elapsedSeconds()
             val remaining = maxSeconds - elapsed
 
-            Log.d("PausaTimer", "tick — elapsed: ${elapsed}s / max: ${maxSeconds}s / pkg: $packageName")
+            PausaLog.d("PausaTimer", "tick — elapsed: ${elapsed}s / max: ${maxSeconds}s / pkg: $packageName")
 
             if (elapsed % 10 == 0) {
                 SessionStore.heartbeat(this@PausaTimerService)
@@ -40,15 +39,15 @@ class PausaTimerService : Service() {
 
             if (elapsed >= maxSeconds) {
                 handler.removeCallbacks(this)
-                Log.d("PausaTimer", "TIME UP for $packageName")
+                PausaLog.d("PausaTimer", "TIME UP for $packageName")
                 // Solo se expulsa con confirmación positiva: pantalla activa y la app
                 // delante. Ante la duda (pantalla apagada, sin eventos, error) no se
                 // expulsa: un falso positivo bloquea la app hasta medianoche.
                 if (isConfirmedInForeground()) {
-                    Log.d("PausaTimer", "App still in foreground — expelling")
+                    PausaLog.d("PausaTimer", "App still in foreground — expelling")
                     expelUser()
                 } else {
-                    Log.d("PausaTimer", "App not in foreground — stopping silently")
+                    PausaLog.d("PausaTimer", "App not in foreground — stopping silently")
                     PausaAccessibilityService.endSession(packageName)
                     stopSelf()
                 }
@@ -82,7 +81,7 @@ class PausaTimerService : Service() {
             val inst = instance ?: return
             if (inst.isStopping) return // already in teardown
             if (inst.packageName.isNotEmpty() && inst.packageName != pkg) return
-            Log.d("PausaTimer", "stopIfRunning: stopping timer for $pkg")
+            PausaLog.d("PausaTimer", "stopIfRunning: stopping timer for $pkg")
             inst.isStopping = true
             inst.handler.removeCallbacks(inst.timerRunnable)
             inst.stopSelf()
@@ -92,7 +91,7 @@ class PausaTimerService : Service() {
         fun stopAll() {
             val inst = instance ?: return
             if (inst.isStopping) return // already in teardown
-            Log.d("PausaTimer", "stopAll: stopping timer for ${inst.packageName}")
+            PausaLog.d("PausaTimer", "stopAll: stopping timer for ${inst.packageName}")
             inst.isStopping = true
             inst.handler.removeCallbacks(inst.timerRunnable)
             // Post stopSelf to avoid calling it from an external thread context
@@ -111,13 +110,13 @@ class PausaTimerService : Service() {
 
             // Already running for same package — ignore duplicate start
             if (isRunning && currentPackage == newPackage) {
-                Log.d("PausaTimer", "Already running for $newPackage — ignoring duplicate start")
+                PausaLog.d("PausaTimer", "Already running for $newPackage — ignoring duplicate start")
                 return START_NOT_STICKY
             }
 
             // Running for different package — stop the previous timer cleanly
             if (isRunning && currentPackage != newPackage) {
-                Log.d("PausaTimer", "Switching timer from $currentPackage to $newPackage")
+                PausaLog.d("PausaTimer", "Switching timer from $currentPackage to $newPackage")
                 handler.removeCallbacks(timerRunnable)
                 PausaAccessibilityService.endSession(currentPackage)
                 SessionStore.end(this, currentPackage, System.currentTimeMillis())
@@ -131,7 +130,7 @@ class PausaTimerService : Service() {
             if (remainingToday <= 0) {
                 // No debería llegar aquí (el bloqueo diario corta antes), pero si
                 // llega no hay sesión que dar: el poller mandará la app al inicio.
-                Log.d("PausaTimer", "sin tiempo restante hoy para $newPackage — no se inicia sesión")
+                PausaLog.d("PausaTimer", "sin tiempo restante hoy para $newPackage — no se inicia sesión")
                 PausaAccessibilityService.endSession(newPackage)
                 packageName = ""
                 isRunning = false
@@ -148,7 +147,7 @@ class PausaTimerService : Service() {
             SessionStore.start(this, packageName, appName, startTimeMs, maxSeconds)
             isRunning = true
             currentPackage = packageName
-            Log.d("PausaTimer", "started — pkg: $packageName / maxSeconds: $maxSeconds")
+            PausaLog.d("PausaTimer", "started — pkg: $packageName / maxSeconds: $maxSeconds")
         } else {
             // Reinicio tras morir el proceso (intent nulo de START_STICKY, o petición
             // de restauración del servicio de accesibilidad): recuperar del disco.
@@ -158,7 +157,7 @@ class PausaTimerService : Service() {
                 return START_NOT_STICKY
             }
             if (isRunning && currentPackage == saved.packageName) {
-                Log.d("PausaTimer", "restore — ya en marcha para ${saved.packageName}")
+                PausaLog.d("PausaTimer", "restore — ya en marcha para ${saved.packageName}")
                 return START_STICKY
             }
             packageName = saved.packageName
@@ -169,7 +168,7 @@ class PausaTimerService : Service() {
             isRunning = true
             currentPackage = packageName
             PausaAccessibilityService.restoreSession(packageName)
-            Log.d("PausaTimer", "restaurada del disco — pkg: $packageName / elapsed: ${elapsedSeconds()}s / max: ${maxSeconds}s")
+            PausaLog.d("PausaTimer", "restaurada del disco — pkg: $packageName / elapsed: ${elapsedSeconds()}s / max: ${maxSeconds}s")
         }
 
         createNotificationChannel()
@@ -189,7 +188,7 @@ class PausaTimerService : Service() {
             // Al restaurar desde segundo plano Android puede negar el primer plano.
             // El temporizador sigue igualmente: el proceso lo mantienen vivo el
             // servicio de accesibilidad y el keepalive.
-            Log.e("PausaTimer", "startForeground falló (restored=$restored): $e")
+            PausaLog.e("PausaTimer", "startForeground falló (restored=$restored): $e")
         }
 
         handler.removeCallbacks(timerRunnable)
@@ -218,7 +217,7 @@ class PausaTimerService : Service() {
             SessionStore.remainingSecondsToday(this, packageName, maxMinutes)
         } else 0
         if (remaining <= 0) {
-            Log.d("PausaTimer", "cambio de día — sin límite que aplicar a $packageName, se para")
+            PausaLog.d("PausaTimer", "cambio de día — sin límite que aplicar a $packageName, se para")
             handler.removeCallbacks(timerRunnable)
             stopSelf()
             return false
@@ -227,12 +226,12 @@ class PausaTimerService : Service() {
         maxSeconds = remaining
         SessionStore.start(this, packageName, appName, startTimeMs, maxSeconds)
         SessionStore.heartbeat(this, now)
-        Log.d("PausaTimer", "cambio de día — sesión de $packageName reabierta con ${maxSeconds}s")
+        PausaLog.d("PausaTimer", "cambio de día — sesión de $packageName reabierta con ${maxSeconds}s")
         return true
     }
 
     private fun expelUser() {
-        Log.d("PausaTimer", "expelUser called for $packageName")
+        PausaLog.d("PausaTimer", "expelUser called for $packageName")
         // Sumar el uso ya: el bloqueo diario se calcula con el acumulado y tiene
         // que estar al día antes de que el usuario intente volver a entrar.
         SessionStore.end(this, packageName, System.currentTimeMillis())
@@ -261,7 +260,7 @@ class PausaTimerService : Service() {
             .setAutoCancel(true)
             .build()
         nm.notify(packageName.hashCode(), expulsionNotification)
-        Log.d("PausaTimer", "expulsion notification shown for $displayName")
+        PausaLog.d("PausaTimer", "expulsion notification shown for $displayName")
         // ─────────────────────────────────────────────────────────────────────
 
         val baseHomeIntent = Intent(Intent.ACTION_MAIN).apply {
@@ -279,7 +278,7 @@ class PausaTimerService : Service() {
         } else {
             baseHomeIntent
         }
-        Log.d("PausaTimer", "going home via: ${resolvedLauncher?.activityInfo?.packageName ?: "generic"}")
+        PausaLog.d("PausaTimer", "going home via: ${resolvedLauncher?.activityInfo?.packageName ?: "generic"}")
         startActivity(homeIntent)
 
         // Stay alive for 10 s so the AccessibilityService isExpelling window has time to settle
@@ -332,19 +331,19 @@ class PausaTimerService : Service() {
     private fun isConfirmedInForeground(): Boolean {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         if (!pm.isInteractive) {
-            Log.d("PausaTimer", "pantalla apagada — no se expulsa")
+            PausaLog.d("PausaTimer", "pantalla apagada — no se expulsa")
             return false
         }
         val sinceStart = System.currentTimeMillis() - startTimeMs + WINDOW_MARGIN_MS
         val window = maxOf(ForegroundHelper.LONG_WINDOW_MS, sinceStart)
         val front = ForegroundHelper.lastForegroundPackage(this, window)
-        Log.d("PausaTimer", "app delante al agotarse el tiempo: $front")
+        PausaLog.d("PausaTimer", "app delante al agotarse el tiempo: $front")
         return front == packageName
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d("PausaTimer", "onDestroy for $packageName")
+        PausaLog.d("PausaTimer", "onDestroy for $packageName")
         handler.removeCallbacks(timerRunnable)
         if (packageName.isNotEmpty()) {
             // Sesión restaurada: contar solo hasta el último latido conocido.

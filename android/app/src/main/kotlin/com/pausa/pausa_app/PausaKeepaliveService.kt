@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.*
-import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class PausaKeepaliveService : Service() {
@@ -24,7 +23,7 @@ class PausaKeepaliveService : Service() {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                Log.e("PausaDebug", "no se pudo arrancar el keepalive: $e")
+                PausaLog.e("PausaDebug", "no se pudo arrancar el keepalive: $e")
             }
         }
     }
@@ -45,7 +44,7 @@ class PausaKeepaliveService : Service() {
         } catch (e: Exception) {
             // El sistema puede negar el primer plano si el arranque vino de segundo
             // plano sin exención (Android 12+). Mejor parar que tumbar el proceso.
-            Log.e("PausaDebug", "keepalive sin primer plano: $e")
+            PausaLog.e("PausaDebug", "keepalive sin primer plano: $e")
             stopSelf()
         }
     }
@@ -81,7 +80,7 @@ class PausaKeepaliveService : Service() {
                 pendingIntent
             )
         } catch (e: Exception) {
-            Log.e("PausaDebug", "no se pudo programar el reinicio del keepalive: $e")
+            PausaLog.e("PausaDebug", "no se pudo programar el reinicio del keepalive: $e")
         }
     }
 

@@ -110,7 +110,7 @@ class UsageStatsService {
       _iconCache[packageName] = bytes;
       return bytes;
     } catch (e) {
-      debugPrint('getAppIcon error for $packageName: $e');
+      if (kDebugMode) debugPrint('getAppIcon error for $packageName: $e');
       _iconCache[packageName] = null;
       return null;
     }

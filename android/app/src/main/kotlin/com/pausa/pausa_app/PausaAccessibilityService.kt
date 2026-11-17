@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 
 class PausaAccessibilityService : AccessibilityService() {
@@ -33,7 +32,7 @@ class PausaAccessibilityService : AccessibilityService() {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> onScreenOff()
                 Intent.ACTION_SCREEN_ON -> {
-                    Log.d("PausaDebug", "pantalla encendida — reiniciando poller")
+                    PausaLog.d("PausaDebug", "pantalla encendida — reiniciando poller")
                     // Sentinel forces the next poller tick to evaluate whatever app is in
                     // foreground, even if it was already there before the screen turned off.
                     // The session ended when the screen went off, so the app has no
@@ -46,7 +45,7 @@ class PausaAccessibilityService : AccessibilityService() {
                     // Tras desbloquear, la app que estaba debajo vuelve a quedar delante.
                     // La búsqueda larga la encuentra aunque su evento ya no entre en la
                     // ventana corta del poller.
-                    Log.d("PausaDebug", "móvil desbloqueado — reevaluando la app delante")
+                    PausaLog.d("PausaDebug", "móvil desbloqueado — reevaluando la app delante")
                     lastForegroundPackage = "__reset__"
                     needsLongLookup = true
                     handler.removeCallbacks(foregroundPoller)
@@ -62,7 +61,7 @@ class PausaAccessibilityService : AccessibilityService() {
     // —con bloqueo hasta medianoche— por tiempo que nadie había usado.
     private fun onScreenOff() {
         val sessions = activeSessionApps.toList()
-        Log.d("PausaDebug", "pantalla apagada — cerrando sesiones: $sessions / temporizador: ${PausaTimerService.currentPackage}")
+        PausaLog.d("PausaDebug", "pantalla apagada — cerrando sesiones: $sessions / temporizador: ${PausaTimerService.currentPackage}")
         PausaInterstitialActivity.cancelForScreenOff()
         PausaTimerService.stopAll()
         sessions.forEach { endSession(it) }
@@ -104,7 +103,7 @@ class PausaAccessibilityService : AccessibilityService() {
 
     private fun stopWatchingInterstitial(reason: String) {
         if (awaitingPkg.isNotEmpty()) {
-            Log.d("PausaDebug", "vigilancia de la espera de $awaitingPkg terminada: $reason")
+            PausaLog.d("PausaDebug", "vigilancia de la espera de $awaitingPkg terminada: $reason")
         }
         awaitingPkg = ""
         handler.removeCallbacks(interstitialWatchdog)
@@ -140,7 +139,7 @@ class PausaAccessibilityService : AccessibilityService() {
             val waited = System.currentTimeMillis() - awaitingSinceMs
             if (waited >= INTERSTITIAL_GIVE_UP_MS) {
                 if (front == pkg) {
-                    Log.d("PausaDebug", "la espera de $pkg no ha salido en ${waited}ms — al inicio")
+                    PausaLog.d("PausaDebug", "la espera de $pkg no ha salido en ${waited}ms — al inicio")
                     if (!performGlobalAction(GLOBAL_ACTION_HOME)) {
                         startActivity(Intent(Intent.ACTION_MAIN).apply {
                             addCategory(Intent.CATEGORY_HOME)
@@ -154,7 +153,7 @@ class PausaAccessibilityService : AccessibilityService() {
             }
 
             if (front == pkg) {
-                Log.d("PausaDebug", "la espera de $pkg no ha salido tras ${waited}ms — reintento")
+                PausaLog.d("PausaDebug", "la espera de $pkg no ha salido tras ${waited}ms — reintento")
                 launchInterstitial(pkg, config)
             }
             handler.postDelayed(this, INTERSTITIAL_RETRY_MS)
@@ -176,7 +175,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 android.widget.Toast.LENGTH_LONG
             ).show()
         } catch (e: Exception) {
-            Log.e("PausaDebug", "no se pudo mostrar el aviso de bloqueo: $e")
+            PausaLog.e("PausaDebug", "no se pudo mostrar el aviso de bloqueo: $e")
         }
     }
 
@@ -188,7 +187,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 1000)
                 return
             }
-            Log.d("PausaDebug", "poller — current: $current / last: $lastForegroundPackage / isExpelling: $isExpelling / pending: ${pendingIntercepts.keys}")
+            PausaLog.d("PausaDebug", "poller — current: $current / last: $lastForegroundPackage / isExpelling: $isExpelling / pending: ${pendingIntercepts.keys}")
 
             // PAUSA itself came to foreground — do NOT stop timer here.
             // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll()
@@ -217,7 +216,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 getPausaForPackage(current) != null &&
                 isInDailyCooldown(current)) {
                 if (current != lastForegroundPackage) {
-                    Log.d("PausaDebug", "poller — daily cooldown active for $current, sending home")
+                    PausaLog.d("PausaDebug", "poller — daily cooldown active for $current, sending home")
                 }
                 showBlockedToast(current)
                 startActivity(Intent(Intent.ACTION_MAIN).apply {
@@ -234,23 +233,23 @@ class PausaAccessibilityService : AccessibilityService() {
             while (iter.hasNext()) {
                 val (pkg, deadline) = iter.next()
                 if (now > deadline) {
-                    Log.d("PausaDebug", "PENDING intercept expired for $pkg")
+                    PausaLog.d("PausaDebug", "PENDING intercept expired for $pkg")
                     iter.remove()
                     continue
                 }
                 if (current == pkg) {
                     iter.remove()
-                    Log.d("PausaDebug", "PENDING intercept for $pkg — wasRecentlyExpelled: ${wasRecentlyExpelled(pkg)} / isInDailyCooldown: ${isInDailyCooldown(pkg)}")
+                    PausaLog.d("PausaDebug", "PENDING intercept for $pkg — wasRecentlyExpelled: ${wasRecentlyExpelled(pkg)} / isInDailyCooldown: ${isInDailyCooldown(pkg)}")
                     if (wasRecentlyExpelled(pkg) || isInDailyCooldown(pkg)) {
                         // Still in expulsion/cooldown window — send straight home
-                        Log.d("PausaDebug", "PENDING intercept blocked — daily cooldown active for $pkg")
+                        PausaLog.d("PausaDebug", "PENDING intercept blocked — daily cooldown active for $pkg")
                         startActivity(Intent(Intent.ACTION_MAIN).apply {
                             addCategory(Intent.CATEGORY_HOME)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         })
                     } else if (!isInActiveSession(pkg) && !isExpelled(pkg) && !isExpelling) {
                         val pausaConfig = getPausaForPackage(pkg) ?: continue
-                        Log.d("PausaDebug", "PENDING intercept firing for $pkg")
+                        PausaLog.d("PausaDebug", "PENDING intercept firing for $pkg")
                         lastForegroundPackage = pkg
                         launchInterstitial(pkg, pausaConfig)
                         watchInterstitial(pkg)
@@ -331,10 +330,10 @@ class PausaAccessibilityService : AccessibilityService() {
             isExpelling = true
             lastExpelledPackage = packageName
             lastExpelledTimeMs = System.currentTimeMillis()
-            Log.d("PausaDebug", "markExpelled called for $packageName — setting lastExpelledTimeMs=$lastExpelledTimeMs")
+            PausaLog.d("PausaDebug", "markExpelled called for $packageName — setting lastExpelledTimeMs=$lastExpelledTimeMs")
             // Persist so it survives process restart (MIUI kills and restarts the process)
             if (appContext == null) {
-                Log.e("PausaDebug", "markExpelled — appContext is NULL, cannot persist expelled state!")
+                PausaLog.e("PausaDebug", "markExpelled — appContext is NULL, cannot persist expelled state!")
             } else {
                 // El bloqueo del resto del día ya no es una marca aparte: sale del
                 // uso acumulado (ver isInDailyCooldown).
@@ -343,7 +342,7 @@ class PausaAccessibilityService : AccessibilityService() {
                     .putString("last_expelled_pkg", packageName)
                     .putLong("last_expelled_ms", lastExpelledTimeMs)
                     .apply()
-                Log.d("PausaDebug", "markExpelled — persisted to prefs OK for $packageName")
+                PausaLog.d("PausaDebug", "markExpelled — persisted to prefs OK for $packageName")
             }
             activeSessionApps.remove(packageName)
             expelledApps[packageName] = System.currentTimeMillis() + 30000L // 30s window
@@ -380,7 +379,7 @@ class PausaAccessibilityService : AccessibilityService() {
             if (savedPkg != packageName) return false
             val diff = System.currentTimeMillis() - savedMs
             val result = diff < 30000L
-            Log.d("PausaDebug", "wasRecentlyExpelled($packageName) — savedPkg=$savedPkg savedMs=$savedMs diff=${diff}ms result=$result")
+            PausaLog.d("PausaDebug", "wasRecentlyExpelled($packageName) — savedPkg=$savedPkg savedMs=$savedMs diff=${diff}ms result=$result")
             return result
         }
 
@@ -406,7 +405,7 @@ class PausaAccessibilityService : AccessibilityService() {
                     ?.remove("last_expelled_ms")
                     ?.apply()
             }
-            Log.d("PausaDebug", "resetDailyCooldown — 5 min extra para $packageName")
+            PausaLog.d("PausaDebug", "resetDailyCooldown — 5 min extra para $packageName")
         }
 
         /**
@@ -435,7 +434,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 ?.getString("last_expelled_pkg", "") ?: "(no ctx)"
             val preservedMs = ctx?.getSharedPreferences("pausa_prefs", Context.MODE_PRIVATE)
                 ?.getLong("last_expelled_ms", 0L) ?: -1L
-            Log.d("PausaDebug", "clearAll — preserving expelled prefs: pkg=$preservedPkg ms=$preservedMs")
+            PausaLog.d("PausaDebug", "clearAll — preserving expelled prefs: pkg=$preservedPkg ms=$preservedMs")
         }
 
         // True for 10 seconds after any expulsion — blocks all intercepts globally
@@ -539,7 +538,7 @@ class PausaAccessibilityService : AccessibilityService() {
         lastExpelledTimeMs = prefs.getLong("last_expelled_ms", 0L)
         val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
             .format(java.util.Date())
-        Log.d("PausaDebug", "onServiceConnected — today=$today restored lastExpelledPkg=$lastExpelledPackage lastExpelledMs=$lastExpelledTimeMs")
+        PausaLog.d("PausaDebug", "onServiceConnected — today=$today restored lastExpelledPkg=$lastExpelledPackage lastExpelledMs=$lastExpelledTimeMs")
 
         // ── Step 3: clear session state (but NOT expelled prefs — see clearAll()).
         // Only clear state if no timer is running. If a session is active (user is inside
@@ -547,9 +546,9 @@ class PausaAccessibilityService : AccessibilityService() {
         // wipe activeSessionApps and cause the next app event to re-intercept.
         if (!PausaTimerService.isRunning) {
             clearAll()
-            Log.d("PausaDebug", "onServiceConnected — clearAll done (no active timer), poller starting")
+            PausaLog.d("PausaDebug", "onServiceConnected — clearAll done (no active timer), poller starting")
         } else {
-            Log.d("PausaDebug", "onServiceConnected — timer active for ${PausaTimerService.currentPackage}, preserving session state")
+            PausaLog.d("PausaDebug", "onServiceConnected — timer active for ${PausaTimerService.currentPackage}, preserving session state")
         }
         // ── Step 4: recuperar la sesión guardada en disco si el proceso murió con
         //            una sesión en marcha (después de clearAll para no borrarla).
@@ -594,16 +593,16 @@ class PausaAccessibilityService : AccessibilityService() {
         if (!interactive || front != saved.packageName) {
             // No se puede confirmar que la app siga delante: se cierra la sesión
             // sin expulsar, contando el uso solo hasta el último latido.
-            Log.d("PausaDebug", "sesión guardada de ${saved.packageName} NO restaurada (delante: $front / pantalla activa: $interactive)")
+            PausaLog.d("PausaDebug", "sesión guardada de ${saved.packageName} NO restaurada (delante: $front / pantalla activa: $interactive)")
             SessionStore.end(this, saved.packageName, null)
             return
         }
-        Log.d("PausaDebug", "restaurando sesión de ${saved.packageName} (inicio ${saved.startMs}, máx ${saved.maxSeconds}s)")
+        PausaLog.d("PausaDebug", "restaurando sesión de ${saved.packageName} (inicio ${saved.startMs}, máx ${saved.maxSeconds}s)")
         restoreSession(saved.packageName)
         try {
             startService(Intent(this, PausaTimerService::class.java).putExtra("restore", true))
         } catch (e: Exception) {
-            Log.e("PausaDebug", "no se pudo arrancar el temporizador al restaurar: $e")
+            PausaLog.e("PausaDebug", "no se pudo arrancar el temporizador al restaurar: $e")
         }
     }
 
@@ -645,30 +644,30 @@ class PausaAccessibilityService : AccessibilityService() {
     }
 
     private fun handleAppChange(packageName: String) {
-        Log.d("PausaDebug", "handleAppChange — pkg: $packageName / inSession: ${isInActiveSession(packageName)} / expelled: ${isExpelled(packageName)} / expelling: $isExpelling")
+        PausaLog.d("PausaDebug", "handleAppChange — pkg: $packageName / inSession: ${isInActiveSession(packageName)} / expelled: ${isExpelled(packageName)} / expelling: $isExpelling")
 
         // Our own app came to foreground — do NOT stop timer here.
         // MainActivity.onResume handles this exclusively via PausaTimerService.stopAll().
         if (packageName == applicationContext.packageName ||
             packageName.startsWith("com.pausa.")) {
-            Log.d("PausaDebug", "GUARD pausa-package — skipping $packageName")
+            PausaLog.d("PausaDebug", "GUARD pausa-package — skipping $packageName")
             return
         }
         if (packageName.contains("pausa")) {
-            Log.d("PausaDebug", "GUARD contains-pausa — skipping $packageName")
+            PausaLog.d("PausaDebug", "GUARD contains-pausa — skipping $packageName")
             return
         }
         // MIUI system UI (notification shade, status bar animations, etc.)
         if (packageName.contains("miui.systemui") ||
             packageName.contains("miui.system")) {
-            Log.d("PausaDebug", "GUARD miui-system — skipping $packageName")
+            PausaLog.d("PausaDebug", "GUARD miui-system — skipping $packageName")
             return
         }
 
         // Global expulsion guard — ignore all events for 10 seconds after any expulsion
         // to prevent the crash loop caused by our MainActivity coming to foreground
         if (isExpelling) {
-            Log.d("PausaDebug", "GUARD isExpelling — skipping $packageName")
+            PausaLog.d("PausaDebug", "GUARD isExpelling — skipping $packageName")
             return
         }
 
@@ -691,7 +690,7 @@ class PausaAccessibilityService : AccessibilityService() {
                 else ->
                     activeSessionApps.firstOrNull() ?: ""
             }
-            Log.d("PausaDebug", "GUARD home-launcher — ending session for $sessionToEnd (last=$lastForegroundPackage)")
+            PausaLog.d("PausaDebug", "GUARD home-launcher — ending session for $sessionToEnd (last=$lastForegroundPackage)")
             if (sessionToEnd.isNotEmpty() && sessionToEnd in activeSessionApps) {
                 sendStopTimer(sessionToEnd)
                 endSession(sessionToEnd)
@@ -704,18 +703,18 @@ class PausaAccessibilityService : AccessibilityService() {
         // The user may return to the same app; only reset lastForegroundPackage so
         // the next foreground app is detected correctly.
         if (packageName in taskSwitcherPackages) {
-            Log.d("PausaDebug", "GUARD task-switcher — resetting last (no session end) for $lastForegroundPackage")
+            PausaLog.d("PausaDebug", "GUARD task-switcher — resetting last (no session end) for $lastForegroundPackage")
             lastForegroundPackage = ""
             return
         }
 
         if (packageName in ignoredPackages) {
-            Log.d("PausaDebug", "GUARD ignoredPackages — skipping $packageName")
+            PausaLog.d("PausaDebug", "GUARD ignoredPackages — skipping $packageName")
             return
         }
         if (packageName.startsWith("com.android.") &&
             packageName != "com.android.chrome") {
-            Log.d("PausaDebug", "GUARD com.android.* — skipping $packageName")
+            PausaLog.d("PausaDebug", "GUARD com.android.* — skipping $packageName")
             return
         }
 
@@ -723,28 +722,28 @@ class PausaAccessibilityService : AccessibilityService() {
         // markExpelled removes from activeSessionApps, but the ordering makes
         // intent explicit and guards against any future state inconsistency.
         if (isExpelled(packageName)) {
-            Log.d("PausaDebug", "GUARD isExpelled — suppressing $packageName")
+            PausaLog.d("PausaDebug", "GUARD isExpelled — suppressing $packageName")
             expelledApps.remove(packageName)
             return
         }
 
         // In active session — pass through freely
         if (isInActiveSession(packageName)) {
-            Log.d("PausaDebug", "GUARD inActiveSession — passing through $packageName")
+            PausaLog.d("PausaDebug", "GUARD inActiveSession — passing through $packageName")
             return
         }
 
         // Different app came to foreground — end previous session
         if (lastForegroundPackage != packageName &&
             lastForegroundPackage in activeSessionApps) {
-            Log.d("PausaDebug", "ending previous session for $lastForegroundPackage (new app: $packageName)")
+            PausaLog.d("PausaDebug", "ending previous session for $lastForegroundPackage (new app: $packageName)")
             sendStopTimer(lastForegroundPackage)
             endSession(lastForegroundPackage)
         }
 
         // Check if this app has an active pausa
         val pausaConfig = getPausaForPackage(packageName) ?: run {
-            Log.d("PausaDebug", "no pausa config for $packageName — skipping")
+            PausaLog.d("PausaDebug", "no pausa config for $packageName — skipping")
             return
         }
 
@@ -753,12 +752,12 @@ class PausaAccessibilityService : AccessibilityService() {
         // TikTok) where the accessibility event fires during the splash activity but
         // UsageStats won't report the app as foreground until the main activity loads.
         if (pendingIntercepts.containsKey(packageName)) {
-            Log.d("PausaDebug", "PENDING intercept already queued for $packageName — skipping")
+            PausaLog.d("PausaDebug", "PENDING intercept already queued for $packageName — skipping")
             return
         }
         val deadline = System.currentTimeMillis() + 3000L
         pendingIntercepts[packageName] = deadline
-        Log.d("PausaDebug", "PENDING intercept queued for $packageName (deadline in 3s)")
+        PausaLog.d("PausaDebug", "PENDING intercept queued for $packageName (deadline in 3s)")
     }
 
     // ── UsageStats poller ─────────────────────────────────────────────────────
@@ -772,7 +771,7 @@ class PausaAccessibilityService : AccessibilityService() {
         if (needsLongLookup) {
             needsLongLookup = false
             val pkg = ForegroundHelper.lastForegroundPackage(this)
-            Log.d("PausaDebug", "búsqueda larga tras conectar — app delante: $pkg")
+            PausaLog.d("PausaDebug", "búsqueda larga tras conectar — app delante: $pkg")
             if (pkg != null) {
                 stickyForeground = pkg
                 stickyUntilMs = now + 4000L

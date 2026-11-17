@@ -329,7 +329,8 @@ Nada de esto rompe el build hoy.
 - [ ] **Comprobar el permiso de uso con `AppOpsManager`** y permitir que vuelva a `false`. — `UsageStatsHelper.kt`, `lib/shared/providers/usage_stats_provider.dart`
   - Hecha la mitad (16-11): `UsageStatsHelper.hasPermission` consulta `AppOpsManager` (con la comprobación antigua de respaldo). Falta que `usage_stats_provider.dart` vuelva a `false` si se revoca el permiso con la app abierta.
 - [ ] **Reducir el sondeo**: pararlo con la pantalla apagada y cuando no haya pausas activas; cachear la lista de pausas en memoria e invalidarla en `syncPausas`. — `PausaAccessibilityService.kt`, `MainActivity.kt`
-- [ ] **Quitar o condicionar los logs en release** (`if (BuildConfig.DEBUG)`). — los 4 archivos Kotlin de servicios, `build.gradle.kts`
+- [x] **Quitar o condicionar los logs en release** (`if (BuildConfig.DEBUG)`). — los 4 archivos Kotlin de servicios, `build.gradle.kts`
+  - Hecho (17-11): nuevo `PausaLog.kt` (`d`/`e` que solo escriben con `BuildConfig.DEBUG`; `buildConfig = true` en `build.gradle.kts`) y sustituidas todas las llamadas `Log.d/e` de los 5 archivos Kotlin que registraban (accesibilidad, temporizador, interstitial, keepalive, BootReceiver). En Dart, los `debugPrint` de sincronización e iconos van bajo `kDebugMode`. Los `Log` se siguen viendo en debug. Pendiente de comprobar en la release: `adb logcat -s PausaDebug PausaTimer` no debe mostrar nada.
 - [ ] **Arreglar la lista de recientes / lanzador**: detectar el lanzador preguntando al sistema y decidir qué hacer con recientes (hoy termina la sesión). — `PausaAccessibilityService.kt`
 - [ ] **No ofrecer en el selector apps que el servicio ignora**, o quitar el filtro `com.android.*`. — `UsageStatsHelper.kt`, `PausaAccessibilityService.kt`
 - [x] **Receptor de `BOOT_COMPLETED`** que arranque el keepalive. — `AndroidManifest.xml`, nuevo `BootReceiver.kt`
