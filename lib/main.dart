@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
@@ -10,6 +11,8 @@ import 'shared/providers/usage_stats_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Las fuentes van empaquetadas en assets/google_fonts; la app no tiene internet.
+  GoogleFonts.config.allowRuntimeFetching = false;
   await HiveService.init();
 
   final prefs = await SharedPreferences.getInstance();
