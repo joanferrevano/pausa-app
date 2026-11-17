@@ -324,7 +324,8 @@ Nada de esto rompe el build hoy.
 - [x] **Quitar el registro falso y el texto legal**, o escribir una política de privacidad real y enlazarla. — `lib/features/auth/screens/register_screen.dart`
   - Hecho (16-11): `register_screen.dart` ya no tiene ruta (decisión de Joan: se conserva sin usar para cuando haya registro real con Google o email) y se le ha quitado el texto de términos y política de privacidad.
 - [ ] **Corregir racha y tiempo recuperado**: excluir el día en curso, usar la meta del usuario, y añadir tests. — `lib/core/utils/streak_calculator.dart`, `lib/shared/providers/usage_stats_provider.dart`, `test/streak_calculator_test.dart`
-- [ ] **Cambiar el tipo del temporizador a `specialUse`** y quitar `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. — `AndroidManifest.xml`, `PausaTimerService.kt`
+- [x] **Cambiar el tipo del temporizador a `specialUse`** y quitar `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. — `AndroidManifest.xml`, `PausaTimerService.kt`
+  - Hecho (17-11): `PausaTimerService` declara `specialUse` (con su `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`) en el manifiesto y en `startForeground` (Android 14+, igual que el keepalive; antes se usa la llamada sin tipo). Quitado el permiso `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. Pendiente de probar en dispositivo.
 - [ ] **Comprobar el permiso de uso con `AppOpsManager`** y permitir que vuelva a `false`. — `UsageStatsHelper.kt`, `lib/shared/providers/usage_stats_provider.dart`
   - Hecha la mitad (16-11): `UsageStatsHelper.hasPermission` consulta `AppOpsManager` (con la comprobación antigua de respaldo). Falta que `usage_stats_provider.dart` vuelva a `false` si se revoca el permiso con la app abierta.
 - [ ] **Reducir el sondeo**: pararlo con la pantalla apagada y cuando no haya pausas activas; cachear la lista de pausas en memoria e invalidarla en `syncPausas`. — `PausaAccessibilityService.kt`, `MainActivity.kt`

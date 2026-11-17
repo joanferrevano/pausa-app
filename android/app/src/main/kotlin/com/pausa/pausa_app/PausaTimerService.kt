@@ -175,11 +175,12 @@ class PausaTimerService : Service() {
         createNotificationChannel()
         val initialRemaining = (maxSeconds - elapsedSeconds()).coerceAtLeast(0)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // specialUse solo existe desde Android 14; antes el tipo no hace falta.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(
                     NOTIFICATION_ID,
                     buildNotification(initialRemaining),
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                 )
             } else {
                 startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
